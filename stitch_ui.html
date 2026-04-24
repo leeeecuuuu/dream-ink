@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>KINETIC | AI Image Workbench</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed-variant": "#474648",
+                        "inverse-primary": "#4d4ad5",
+                        "on-secondary-fixed": "#1b1b1d",
+                        "on-error-container": "#ffdad6",
+                        "on-background": "#e5e2e1",
+                        "tertiary-fixed-dim": "#ffb786",
+                        "primary-container": "#5e5ce6",
+                        "outline-variant": "#464554",
+                        "surface-container-low": "#1c1b1b",
+                        "surface-container-high": "#2a2a2a",
+                        "on-surface": "#e5e2e1",
+                        "error-container": "#93000a",
+                        "on-primary": "#1800a7",
+                        "surface-tint": "#c2c1ff",
+                        "surface-dim": "#131313",
+                        "primary": "#c2c1ff",
+                        "error": "#ffb4ab",
+                        "on-surface-variant": "#c7c4d7",
+                        "on-secondary-container": "#b9b8ba",
+                        "surface-variant": "#353534",
+                        "on-error": "#690005",
+                        "tertiary-container": "#ae5600",
+                        "tertiary-fixed": "#ffdcc6",
+                        "secondary-container": "#49494b",
+                        "inverse-surface": "#e5e2e1",
+                        "surface-bright": "#3a3939",
+                        "surface-container-lowest": "#0e0e0e",
+                        "surface-container-highest": "#353534",
+                        "on-tertiary": "#502400",
+                        "surface-container": "#201f1f",
+                        "on-primary-fixed": "#0c006b",
+                        "inverse-on-surface": "#313030",
+                        "background": "#131313",
+                        "secondary": "#c8c6c8",
+                        "on-secondary": "#303032",
+                        "secondary-fixed-dim": "#c8c6c8",
+                        "on-tertiary-container": "#ffefe7",
+                        "secondary-fixed": "#e4e2e4",
+                        "primary-fixed": "#e2dfff",
+                        "surface": "#131313",
+                        "on-tertiary-fixed": "#311300",
+                        "on-primary-fixed-variant": "#332dbc",
+                        "tertiary": "#ffb786",
+                        "primary-fixed-dim": "#c2c1ff",
+                        "on-primary-container": "#f4f1ff",
+                        "on-tertiary-fixed-variant": "#723600",
+                        "outline": "#918fa0"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "display": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: #131313; }
+        .glass { background: rgba(58, 57, 57, 0.6); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+        .masonry { column-count: 2; column-gap: 1.5rem; }
+        @media (min-width: 1280px) { .masonry { column-count: 3; } }
+        .masonry-item { break-inside: avoid; margin-bottom: 1.5rem; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #c2c1ff;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="text-on-surface h-screen flex flex-col overflow-hidden">
+<!-- TopAppBar -->
+<header class="bg-[#131313] shadow-none border-none flex justify-between items-center w-full px-6 h-16 fixed top-0 z-50 font-['Inter'] tracking-tight antialiased">
+<div class="flex items-center gap-8">
+<span class="text-xl font-black tracking-tighter text-[#5E5CE6] dark:text-[#5E5CE6]">KINETIC</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-white border-b-2 border-[#5E5CE6] pb-1" href="#">Guide</a>
+<a class="text-[#C7C4D7] hover:text-white transition-colors" href="#">Config</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-[#C7C4D7] hover:bg-[#3A3939] transition-all duration-200 p-2 rounded-lg">account_circle</button>
+</div>
+</header>
+<main class="flex flex-1 pt-16 overflow-hidden">
+<!-- Left Sidebar (SideNavBar - Generator Controls) -->
+<aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-72 bg-[#1C1B1B] border-none flex flex-col p-6 font-['Inter'] text-sm font-medium z-40 overflow-y-auto">
+<div class="mb-8">
+<span class="text-[#5E5CE6] font-bold block">GENERATOR</span>
+<span class="text-xs text-on-surface-variant opacity-60">V2.4 Engine</span>
+</div>
+<div class="space-y-6">
+<!-- Prompt Input -->
+<div class="space-y-2">
+<label class="text-xs uppercase tracking-widest text-on-surface-variant">Prompt</label>
+<textarea class="w-full h-32 bg-surface-container-lowest border-none rounded-lg p-3 text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary/40 resize-none shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]" placeholder="A cinematic shot of a neon-lit cyberpunk city in the rain..."></textarea>
+</div>
+<!-- Parameters -->
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-2">
+<label class="text-xs uppercase tracking-widest text-on-surface-variant">Ratio</label>
+<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm text-on-surface py-2 px-3">
+<option>16:9</option>
+<option>1:1</option>
+<option>4:5</option>
+</select>
+</div>
+<div class="space-y-2">
+<label class="text-xs uppercase tracking-widest text-on-surface-variant">Quality</label>
+<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm text-on-surface py-2 px-3">
+<option>Ultra</option>
+<option>High</option>
+<option>Draft</option>
+</select>
+</div>
+</div>
+<!-- Slider -->
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<label class="text-xs uppercase tracking-widest text-on-surface-variant">Batch Count</label>
+<span class="text-primary text-xs font-bold">04</span>
+</div>
+<input class="w-full h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary" max="8" min="1" type="range" value="4"/>
+</div>
+<!-- Image Reference -->
+<div class="space-y-2">
+<label class="text-xs uppercase tracking-widest text-on-surface-variant">Reference</label>
+<div class="border-2 border-dashed border-outline-variant/30 rounded-lg h-24 flex flex-col items-center justify-center gap-1 hover:bg-surface-container-high transition-colors group cursor-pointer">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">add_photo_alternate</span>
+<span class="text-[10px] text-outline uppercase tracking-tighter">Drag to Upload</span>
+</div>
+</div>
+</div>
+<!-- Generate CTA -->
+<button class="mt-auto bg-primary-container text-on-primary-container font-bold py-4 rounded-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary-container/20">
+<span class="material-symbols-outlined">auto_awesome</span>
+                Generate
+            </button>
+</aside>
+<!-- Center Workspace -->
+<section class="flex-1 ml-72 mr-80 bg-surface-container-lowest min-h-screen overflow-y-auto p-12">
+<!-- Masonry Content (Populated State) -->
+<div class="masonry max-w-7xl mx-auto">
+<!-- Masonry Item 1 -->
+<div class="masonry-item relative group rounded-xl overflow-hidden bg-surface-container">
+<img class="w-full object-cover" data-alt="abstract flowing 3d shapes with iridescent liquid texture in vibrant purple and blue lighting minimalist composition" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7zTDgTxXxTCiyyodTIj3tLeT6eVX71KkEygz85YDNyqd3eb9cUtlBalLOPXP1ScnMFSBXUFr-Kj2jHcPwchOijKM8-Xa9QXHtTg8MBzQXwbqoKPURvPIbmc36VZ6PeAoNfvFgI_5n0O-ZSLs__uXv0j9-69H5Yr6Nxd48C4sB7MFW1qomYjTB_2Z6KfybVX6dX-JvOoG0KyZwQTPoULUU8nEqsafB6IRiFRkLUI7GbG8oBjTsnJRdx8foD3H1-qRSmJk3C6o-Uyo"/>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+<div class="glass p-2 rounded-xl flex justify-between items-center gap-2">
+<div class="flex gap-1">
+<button class="p-2 hover:bg-white/10 rounded-lg"><span class="material-symbols-outlined text-sm">zoom_in</span></button>
+<button class="p-2 hover:bg-white/10 rounded-lg"><span class="material-symbols-outlined text-sm">content_copy</span></button>
+</div>
+<button class="bg-primary text-on-primary-fixed-variant px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">brush</span> Redraw
+                            </button>
+</div>
+</div>
+</div>
+<!-- Masonry Item 2 -->
+<div class="masonry-item relative group rounded-xl overflow-hidden bg-surface-container">
+<img class="w-full object-cover" data-alt="futuristic architectural structure with curved white concrete forms and soft orange sunset lighting in background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkgn1gPRGoTusFW71eGHpP8-hgMIW4LvvvpFk2V5UdVUz8biWHS_kk2-cMw7KsJtHitBCvOhsQvo2Tevi6VHv-2NwG2fEkC0FxyaKWwqbzSGZ6jhLfF0vY11BV5Sv8Z2-NddJECVDDbrGMvFm4RzuZq5VTeWL6wh-vaMXh0JY17DQeDAocmkQJsN5U69h79wgRb4z4smIGEUhMaAQVqwQw-M0ARAZ0FWARYaeye5zT2zCI1Kmmns2ulPNOQAK47wdBSGtyhigVKPw"/>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+<div class="glass flex gap-4 p-4 rounded-full">
+<button class="hover:text-primary transition-colors"><span class="material-symbols-outlined">download</span></button>
+<button class="hover:text-primary transition-colors"><span class="material-symbols-outlined">share</span></button>
+</div>
+</div>
+</div>
+<!-- Masonry Item 3 -->
+<div class="masonry-item relative group rounded-xl overflow-hidden bg-surface-container">
+<img class="w-full object-cover" data-alt="digital art macro shot of glowing crystal structures with bioluminescent veins inside a dark void space" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdzCiQ4XnyBMgCBBT2zM_uTf3FafCbMGZQlv05PwKZrCbcSx3jjDeES-FpYVxVaxKaDJrvkOW6tOb8QAZsMa_BKTF5D5SQYa_wsJDTTAEGJVmCJNBXsHr8uM_8-AAqDnn8IvJJQ5e5HtuOaMSW5HTbwLNRTu0h1cGmwM9H3_ELTSc0SPhBJS9j-YM21zvajvn6le7DohgI9J3MIyF4qiqUkr9OUYwWCIFMY6azMhThbqF6fqWcQCaZaBJRSGCrRHDeIXtRmT2d3CU"/>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+</div>
+<!-- Masonry Item 4 -->
+<div class="masonry-item relative group rounded-xl overflow-hidden bg-surface-container">
+<img class="w-full object-cover" data-alt="ethereal landscape with floating geometric cubes over a calm mirror-like lake at dawn soft pastel clouds" src="https://lh3.googleusercontent.com/aida-public/AB6AXuApZPwh7ILgTI4W1DwZdrAnHQUAEayktqKSe3tl1lIlLhaUrDubAhZFD9bzk9dGvWNuwo4QMxcZJ8aH6aPfZ2NHimcK5K-IWL_RlWhCTDq5HrFazi8AypRAF4X4mIBUCJ-GSJf1FNTPlSLw3UyH91eFz4ZRduST6MvpBTvtruLVHoy6C5wsm1Yw3mmC-305Dfhgnngh02RBlNN4f5DzQaP89K_PZecO5kpV1vmR0ksBBOcHpT0MP1TAcKEYneQgjiUeHEoiZUUO578"/>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+</div>
+<!-- Empty State Aesthetic Placeholder -->
+<div class="masonry-item border border-outline-variant/10 rounded-xl p-8 flex flex-col items-center justify-center text-center space-y-4 min-h-[300px]">
+<span class="material-symbols-outlined text-4xl text-primary/30">auto_fix_high</span>
+<h3 class="font-headline font-bold text-on-surface">Creative Void</h3>
+<p class="text-xs text-on-surface-variant leading-relaxed max-w-[200px]">Enter a prompt to populate your workspace with machine-dreamed artifacts.</p>
+</div>
+</div>
+</section>
+<!-- Right Sidebar (History Sidebar) -->
+<aside class="fixed right-0 top-16 h-[calc(100vh-64px)] w-80 bg-[#0E0E0E] border-none flex flex-col p-6 font-['Inter'] z-40 overflow-hidden">
+<div class="flex justify-between items-center mb-8">
+<div>
+<span class="text-xs tracking-wide uppercase text-[#C7C4D7] opacity-60">HISTORY</span>
+<h2 class="text-sm font-bold text-white">Recent Generations</h2>
+</div>
+<div class="flex gap-2">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-white transition-opacity text-xl">upload_file</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-white transition-opacity text-xl">delete_sweep</button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+<!-- History Item 1 -->
+<div class="flex gap-4 group cursor-pointer hover:bg-surface-container-high/40 p-2 rounded-lg transition-all duration-300">
+<div class="w-16 h-16 rounded-lg bg-surface-container overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100" data-alt="small thumbnail of iridescent liquid textures" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCq77AvWHzVfMD6uqbJe3Vk6ysifikTN7EMD_iiW7wP874LPgmIf_Ht5yM7-q5NPCO3us3U7WLzS7lT7zQD98RAqThJa5Mp7foUvbTWauopjvceyn5bjAPgFEyn9U6vebzwTRQwy0YWZWg0NTeTPc5Pjgu1gAvcpVF_wCMIXqaJkKI25FVHGqpYguLrsqe9EB6A4Zf4V__j_JlEr4Ocvw1An4DeccW31vqG170PAWpwvEEoLvWT03uA8tYzw2lzEdpAQG62s25KdnQ"/>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-[10px] text-primary/70 uppercase tracking-widest font-bold">Batch #012</span>
+<span class="text-xs text-on-surface-variant line-clamp-1 group-hover:text-on-surface">Neon cyberpunk city rain...</span>
+<span class="text-[9px] text-outline mt-1 italic">2 mins ago</span>
+</div>
+</div>
+<!-- History Item 2 -->
+<div class="flex gap-4 group cursor-pointer hover:bg-surface-container-high/40 p-2 rounded-lg transition-all duration-300">
+<div class="w-16 h-16 rounded-lg bg-surface-container overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100" data-alt="small thumbnail of white architectural concrete structure" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCApth4aZ6QQ66B-03aGnwDR_ybvyGeUpaJGSg1X6gB4DGAw4ZS4mNnSovsK9mbJCKrufSsWSc0Q3PCfK3XXgN6qnaA7_4KQEuqYV9EeABSqxi8kc0fXtuEAjHqCIW87hhVYEBv73DO0GxKMlgN067S3DnslNC05Y-Q5p5-7KdmEfgYapElSMMx1p4dX3ZVlDFpIodB0AmfcbZZI_ulkHLr8GSGQcrgj3_bWA1QMwQzH5aj9i4Peb_fYnbBXoBZqCYFa__16XuTk-w"/>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-[10px] text-primary/70 uppercase tracking-widest font-bold">Batch #011</span>
+<span class="text-xs text-on-surface-variant line-clamp-1 group-hover:text-on-surface">Minimalist brutalist architecture...</span>
+<span class="text-[9px] text-outline mt-1 italic">1 hour ago</span>
+</div>
+</div>
+<!-- History Item 3 -->
+<div class="flex gap-4 group cursor-pointer hover:bg-surface-container-high/40 p-2 rounded-lg transition-all duration-300">
+<div class="w-16 h-16 rounded-lg bg-surface-container overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100" data-alt="small thumbnail of glowing crystal structures" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBSXBOB9rC8dCz_bDFTfigxBZLekVVvYnQKugZHzn2vWHNHWQUTfeccuZnfJiq-PMdCjCDoZHBa1kAvq3d26TXsxcyOZUctLpB7w47HsxdAN3_8xMSesUH4-J7RAg2R7j8fJM9x9mdpdE-lGHsE1sU7_uMAy3uAKDRVPZ5f6mV9xE6FZbWKlifcZkvTEFK5k4vpjU1gXUAR_JY3ivbeukhZYBz_WEfqA7e1JwifkTgQ8Xt_NzAlMJTDv7A3Tc7HzViMo-ZyoT3Vdng"/>
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-[10px] text-primary/70 uppercase tracking-widest font-bold">Batch #010</span>
+<span class="text-xs text-on-surface-variant line-clamp-1 group-hover:text-on-surface">Bioluminescent crystal caves...</span>
+<span class="text-[9px] text-outline mt-1 italic">Yesterday</span>
+</div>
+</div>
+</div>
+<!-- Footer Actions -->
+<div class="mt-auto pt-6 border-t border-outline-variant/10 flex justify-between">
+<button class="flex items-center gap-2 text-[10px] text-on-surface-variant hover:text-white uppercase tracking-widest transition-all">
+<span class="material-symbols-outlined text-sm">download</span>
+                    Export
+                </button>
+<button class="flex items-center gap-2 text-[10px] text-on-surface-variant hover:text-white uppercase tracking-widest transition-all">
+<span class="material-symbols-outlined text-sm">settings_backup_restore</span>
+                    Recover
+                </button>
+</div>
+</aside>
+</main>
+<!-- Floating Glass Rail (Workspace Tools) -->
+<div class="fixed bottom-8 left-1/2 -translate-x-1/2 glass px-6 py-3 rounded-full flex items-center gap-6 z-50 border border-white/5 shadow-2xl">
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">grid_view</span>
+<span class="text-xs font-bold">Layout</span>
+</button>
+<div class="w-px h-4 bg-outline-variant/30"></div>
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">filter_vintage</span>
+<span class="text-xs font-bold">Presets</span>
+</button>
+<div class="w-px h-4 bg-outline-variant/30"></div>
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">history_edu</span>
+<span class="text-xs font-bold">Logs</span>
+</button>
+</div>
+</body></html>

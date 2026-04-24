@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBanavel Ai image</title>
+    <meta name="description" content="图像生成工作台">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: 'var(--accent)',
+                        'primary-container': 'var(--accent)',
+                        'on-primary-container': '#ffffff',
+                        'primary-fixed-variant': 'var(--accent-hover)',
+                        'on-primary-fixed-variant': '#ffffff',
+                        surface: 'var(--bg-primary)',
+                        'surface-container-lowest': 'var(--bg-secondary)',
+                        'surface-container-low': 'var(--bg-tertiary)',
+                        'surface-container': 'var(--bg-tertiary)',
+                        'surface-container-high': 'var(--input-bg)',
+                        'surface-container-highest': 'var(--input-bg)',
+                        'on-surface': 'var(--text-primary)',
+                        'on-surface-variant': 'var(--text-secondary)',
+                        outline: 'var(--text-muted)',
+                        'outline-variant': 'var(--border-color)',
+                        error: 'var(--error-text)',
+                        success: 'var(--success-text)',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                        headline: ['Inter', 'sans-serif'],
+                        display: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    
+    <!-- 外部样式表 (CSS变量 & 自定义组件) -->
+    <link rel="stylesheet" href="style.css">
+    
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+
+<body class="text-on-surface h-screen flex flex-col overflow-hidden antialiased tracking-tight">
+    
+    <!-- TopAppBar -->
+    <header class="bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center w-full px-6 h-16 fixed top-0 z-50">
+        <div class="flex items-center gap-6">
+            <span class="text-xl font-black tracking-tighter text-primary">GBanavel Ai image</span>
+            <button id="openLibraryBtn" class="flex items-center gap-1.5 text-xs bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high px-3 py-1.5 rounded-md transition-colors border border-outline-variant font-bold shadow-sm">
+                <span class="material-symbols-outlined text-[16px]">menu_book</span> 咒语书
+            </button>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="infoBtn" class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high text-sm font-medium">
+                <span class="material-symbols-outlined text-[18px]">explore</span> 指南
+            </button>
+            <button id="apiConfigBtn" class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high text-sm font-medium">
+                <span class="material-symbols-outlined text-[18px]">settings</span> 配置
+            </button>
+            <button id="themeToggle" class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high text-sm font-medium">
+                <span class="material-symbols-outlined text-[18px]">dark_mode</span> 深色
+            </button>
+        </div>
+    </header>
+
+    <main class="flex flex-1 pt-16 overflow-hidden">
+        
+        <!-- Left Sidebar (Generator Controls) -->
+        <aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-80 bg-surface-container-low border-r border-outline-variant flex flex-col p-6 font-sans text-sm font-medium z-40 overflow-y-auto custom-scrollbar">
+            <div class="space-y-6 flex-1 pt-2">
+                <!-- Prompt Input -->
+                <div class="space-y-2 relative">
+                    <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画面描述</label>
+                    <textarea id="promptInput" class="w-full h-40 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary focus:border-primary resize-none shadow-sm transition-shadow text-[13px]" placeholder="请输入你想要生成的画面描述..."></textarea>
+                </div>
+                
+                <!-- Parameters -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画幅比例</label>
+                        <select id="ratioSelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                            <option value="" selected>自动 (Auto)</option>
+                            <option value="1:1">1:1 正方形</option>
+                            <option value="16:9">16:9 宽屏壁纸</option>
+                            <option value="9:16">9:16 手机竖屏</option>
+                            <option value="3:4">3:4 经典肖像</option>
+                            <option value="4:3">4:3 传统横版</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">图像质量</label>
+                        <select id="qualitySelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                            <option value="standard" selected>标准画质</option>
+                            <option value="high">高画质</option>
+                            <option value="ultra">极致画质</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Output Format & Background -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">输出格式</label>
+                        <select id="outputFormat" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                            <option value="png" selected>PNG（无损）</option>
+                            <option value="jpeg">JPEG（压缩）</option>
+                            <option value="webp">WebP（现代）</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">背景样式</label>
+                        <select id="bgStyle" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                            <option value="" selected>默认</option>
+                            <option value="transparent">透明背景</option>
+                            <option value="opaque">不透明</option>
+                            <option value="white">纯白背景</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Batch Slider -->
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">生成数量</label>
+                        <span id="batchValue" class="text-primary text-[11px] font-bold bg-primary/10 px-2 py-0.5 rounded-sm">1</span>
+                    </div>
+                    <input type="range" id="batchSelect" min="1" max="4" value="1" step="1" class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer">
+                </div>
+                
+                <!-- Image Reference -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">参考垫图</label>
+                    <div class="relative border border-dashed border-outline-variant bg-surface-container-lowest rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-surface-container transition-colors group cursor-pointer overflow-hidden min-h-[100px]">
+                        <input type="file" id="imageInput" accept="image/*" multiple title="最多 10 张图片" class="absolute inset-0 opacity-0 cursor-pointer z-10">
+                        <span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-2xl">add_photo_alternate</span>
+                        <span class="text-[10px] text-on-surface-variant tracking-widest font-bold">点击 / 拖拽上传 (最多10张)</span>
+                    </div>
+                    <div id="imagePreviewList" class="w-full flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+            
+            <!-- Generate CTA -->
+            <div class="mt-8">
+                <div id="paramPreview" class="text-[10px] text-center text-outline mb-3 min-h-4 font-medium tracking-wide truncate px-1"></div>
+                <button id="runBtn" class="w-full bg-primary-container text-on-primary-container font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary-container/20 text-[15px]">
+                    <span class="material-symbols-outlined">auto_awesome</span>
+                    开始创造
+                </button>
+                <div id="statusBox" class="text-center mt-4 text-xs font-medium text-primary h-4"></div>
+            </div>
+        </aside>
+
+        <!-- Center Workspace -->
+        <section class="flex-1 ml-80 mr-80 bg-surface-container-lowest min-h-screen overflow-y-auto p-8 relative custom-scrollbar">
+            
+            <div class="max-w-[1400px] mx-auto">
+                <div id="emptyState" class="flex flex-col items-center justify-center text-center space-y-6 h-[70vh]">
+                    <div class="w-24 h-24 rounded-full border border-outline-variant/30 flex items-center justify-center bg-surface-container">
+                        <span class="material-symbols-outlined text-4xl text-on-surface-variant opacity-50">auto_fix_high</span>
+                    </div>
+                    <div>
+                        <h3 class="font-headline font-bold text-lg text-on-surface mb-2 tracking-tight">创意工坊</h3>
+                        <p class="text-sm text-on-surface-variant leading-relaxed max-w-[280px] mx-auto">配置左侧参数并点击生成<br>精美画面将呈现在这里</p>
+                    </div>
+                </div>
+
+                <div id="resultArea" style="display: none;" class="pb-24">
+                    <div id="textResultSection" class="mb-10">
+                        <div class="text-[11px] font-bold tracking-widest text-on-surface-variant mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[14px]">short_text</span> 画面描述
+                        </div>
+                        <div id="textOutput" class="p-6 bg-surface-container border border-outline-variant rounded-xl text-sm text-on-surface leading-relaxed whitespace-pre-wrap break-words shadow-sm"></div>
+                    </div>
+                    
+                    <div class="mb-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <div class="text-[11px] font-bold tracking-widest text-on-surface-variant flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[14px]">gallery_thumbnail</span> 生成图像
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button id="clearGalleryBtn" class="text-[11px] font-bold text-error hover:text-white hover:bg-error bg-error/10 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">delete_sweep</span> 清空工坊
+                                </button>
+                                <button id="toggleCompareBtn" class="text-[11px] font-bold text-primary hover:text-primary-fixed-variant bg-primary/10 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">view_carousel</span> 切换视图
+                                </button>
+                            </div>
+                        </div>
+                        <div id="imageGallery" class="masonry"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Sidebar (History Sidebar) -->
+        <aside id="historySidebar" class="fixed right-0 top-16 h-[calc(100vh-64px)] w-80 bg-surface border-l border-outline-variant flex flex-col p-6 font-sans z-40 overflow-hidden">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <span class="text-[10px] tracking-widest text-on-surface-variant font-bold">历史库</span>
+                    <h2 class="text-sm font-bold text-on-surface mt-0.5">生成记录</h2>
+                </div>
+                <div class="flex gap-1.5">
+                    <button id="exportImagesBtn" class="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-colors" title="打包下载所有原图">
+                        <span class="material-symbols-outlined text-[18px]">archive</span>
+                    </button>
+                    <button id="exportHistoryBtn" class="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-colors" title="导出数据">
+                        <span class="material-symbols-outlined text-[18px]">upload</span>
+                    </button>
+                    <button id="importHistoryBtn" class="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-colors" title="导入数据">
+                        <span class="material-symbols-outlined text-[18px]">download</span>
+                    </button>
+                    <input type="file" id="importHistoryInput" accept=".json" class="hidden">
+                    <button id="clearHistoryBtn" class="p-1.5 text-error hover:bg-error/10 rounded-md transition-colors" title="清空历史">
+                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar" id="historyList"></div>
+        </aside>
+
+    </main>
+
+    <!-- 咒语书模态框 -->
+    <div class="modal-overlay" id="libraryModal">
+        <div class="modal-content !w-[85vw] !max-w-[1200px] !h-[80vh]">
+            <div class="px-6 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+                <h3 class="font-bold text-lg text-on-surface flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">menu_book</span> 咒语书
+                </h3>
+                <button class="material-symbols-outlined text-outline hover:text-on-surface transition-colors text-2xl" id="closeLibraryBtn">close</button>
+            </div>
+            <div class="flex flex-1 overflow-hidden">
+                <div class="w-60 border-r border-outline-variant bg-surface-container p-4 flex flex-col">
+                    <div class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">分类目录</div>
+                    <div id="folderList" class="flex-1 overflow-y-auto space-y-1 custom-scrollbar"></div>
+                    <div class="mt-4 flex gap-2">
+                        <input type="text" id="newFolderInput" placeholder="新分类..." class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-xs px-2 py-1.5 text-on-surface focus:ring-1 focus:border-primary">
+                        <button id="addFolderBtn" class="bg-primary/10 text-primary hover:bg-primary/20 px-2 rounded-md transition-colors">
+                            <span class="material-symbols-outlined text-[16px] block">add</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 p-6 overflow-y-auto bg-surface-container-lowest custom-scrollbar relative">
+                    <div class="flex justify-between items-center mb-6">
+                        <h4 id="currentFolderName" class="font-bold text-on-surface m-0 text-base">未选择分类</h4>
+                    </div>
+                    <div id="promptGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-outline-variant bg-surface-container flex items-center gap-4">
+                <input type="text" id="newPromptName" placeholder="提示词名称 (必填)" class="w-40 bg-surface-container-lowest border border-outline-variant rounded-lg text-sm px-3 py-2 focus:ring-1 focus:border-primary">
+                <input type="text" id="newPromptContent" placeholder="咒语内容 (必填)" class="flex-1 bg-surface-container-lowest border border-outline-variant rounded-lg text-sm px-3 py-2 focus:ring-1 focus:border-primary">
+                <div class="relative">
+                    <label for="newPromptImg" class="cursor-pointer flex items-center gap-1 bg-surface-container-highest hover:bg-outline-variant/50 border border-outline-variant rounded-lg px-4 py-2 text-sm font-medium text-on-surface transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">image</span> 附图
+                    </label>
+                    <input type="file" id="newPromptImg" accept="image/*" class="hidden">
+                    <span id="thumbStatus" class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-success font-bold bg-success/10 px-2 py-0.5 rounded whitespace-nowrap hidden">已就绪</span>
+                </div>
+                <button id="addPromptBtn" class="bg-primary text-on-primary-container px-6 py-2 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[18px]">save</span> 保存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重绘模态框 -->
+    <div class="modal-overlay" id="redrawModal">
+        <div class="redraw-content">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="font-bold text-on-surface m-0 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-[20px]">brush</span> 局部重绘变体
+                </h3>
+                <button onclick="document.getElementById('redrawModal').style.display='none'" class="material-symbols-outlined text-outline hover:text-on-surface transition-colors">close</button>
+            </div>
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl h-40 flex items-center justify-center overflow-hidden mb-5">
+                <img id="redrawSourceThumb" src="" class="max-h-full max-w-full object-contain">
+            </div>
+            <div class="space-y-2 mb-5">
+                <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">修改建议</label>
+                <input type="text" id="redrawPrompt" placeholder="例如：赛博朋克风格 / 加入下雨效果..." maxlength="50" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+            </div>
+            <button id="confirmRedrawBtn" class="w-full bg-primary text-on-primary-container font-bold py-3 rounded-lg hover:brightness-110 transition-all">确认重绘</button>
+        </div>
+    </div>
+
+    <!-- API 配置模态框 -->
+    <div class="modal-overlay" id="apiConfigModal">
+        <div class="modal-content !w-[500px] !max-w-[90vw]">
+            <div class="px-6 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+                <h3 class="font-bold text-on-surface m-0 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">settings_applications</span> API配置
+                </h3>
+                <button class="material-symbols-outlined text-outline hover:text-on-surface transition-colors" id="closeApiConfigBtn">close</button>
+            </div>
+            <div class="p-6 overflow-y-auto bg-surface-container-lowest space-y-6">
+                <!-- 配置管理 -->
+                <div class="bg-surface-container border border-outline-variant p-4 rounded-xl">
+                    <h4 class="text-sm font-bold text-primary mb-3">配置预设</h4>
+                    <div class="space-y-3">
+                        <select id="apiProfileSelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-xs text-on-surface py-2 px-3 focus:ring-1 focus:border-primary">
+                            <option value="">-- 选择已保存的配置 --</option>
+                        </select>
+                        <div class="flex gap-2">
+                            <input type="text" id="apiProfileName" placeholder="配置名称" class="flex-1 bg-surface-container-lowest border border-outline-variant rounded-md text-xs px-2 py-1.5 focus:ring-1 focus:border-primary text-on-surface">
+                            <button id="saveProfileBtn" class="bg-surface-container-highest text-success hover:bg-success/10 px-3 rounded-md text-xs font-bold transition-colors">保存</button>
+                            <button id="delProfileBtn" class="bg-surface-container-highest text-error hover:bg-error/10 px-3 rounded-md text-xs font-bold transition-colors">删除</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 接口信息 -->
+                <div class="bg-surface-container border border-outline-variant p-4 rounded-xl space-y-4">
+                    <h4 class="text-sm font-bold text-primary mb-1">服务设定</h4>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">接口地址</label>
+                        <input type="text" id="baseUrl" placeholder="例如：https://generativelanguage.googleapis.com" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">协议类型</label>
+                        <select id="apiTypeSelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+                            <option value="gemini" selected>Google Gemini 原生接口</option>
+                            <option value="openai">OpenAI 兼容接口</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">密钥 (API Key)</label>
+                        <input type="password" id="apiKey" placeholder="sk-AIzaSy..." class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">模型名称</label>
+                        <div class="flex gap-2">
+                            <select id="modelSelect" class="hidden w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface"></select>
+                            <input type="text" id="modelInput" placeholder="例如 gemini-3-pro" class="flex-1 bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+                            <button id="fetchModelsBtn" class="bg-surface-container-highest hover:bg-outline-variant/30 text-on-surface px-4 rounded-md text-xs font-bold transition-colors whitespace-nowrap">
+                                <div class="spinner"></div>
+                                <span class="fetch-text">获取列表</span>
+                            </button>
+                        </div>
+                        <div id="modelStatus" class="text-[10px] mt-1 text-on-surface-variant">配置并获取模型以开始</div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-outline-variant bg-surface-container text-right">
+                <button id="applyApiConfigBtn" class="bg-primary text-on-primary-container px-6 py-2 rounded-lg font-bold text-sm hover:brightness-110 transition-all">确认 / 关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史详情模态框 -->
+    <div class="modal-overlay" id="historyDetailModal">
+        <div class="modal-content !max-w-[1000px] !w-[90vw] !flex-row overflow-hidden">
+            <div class="w-1/2 bg-surface-container-lowest flex items-center justify-center p-4 border-r border-outline-variant">
+                <img id="hdImage" src="" class="max-w-full max-h-[80vh] object-contain rounded-lg shadow-lg cursor-zoom-in">
+            </div>
+            <div class="w-1/2 p-6 flex flex-col h-[80vh]">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <div class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mb-1">详情</div>
+                        <div id="hdDate" class="text-lg font-bold text-on-surface"></div>
+                    </div>
+                    <button id="hdCloseBtn" onclick="document.getElementById('historyDetailModal').style.display='none'" class="material-symbols-outlined text-outline hover:text-on-surface transition-colors">close</button>
+                </div>
+                <div class="flex-1 overflow-y-auto space-y-6 custom-scrollbar pr-2">
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">模型 / 参数</label>
+                        <div class="flex gap-2 flex-wrap">
+                            <span id="hdModel" class="bg-surface-container border border-outline-variant px-2.5 py-1 rounded-md text-xs text-on-surface-variant"></span>
+                            <span id="hdRatio" class="bg-surface-container border border-outline-variant px-2.5 py-1 rounded-md text-xs text-on-surface-variant"></span>
+                            <span id="hdQuality" class="bg-surface-container border border-outline-variant px-2.5 py-1 rounded-md text-xs text-on-surface-variant"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画面描述</label>
+                        <textarea id="hdPrompt" readonly class="w-full h-32 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-sm text-on-surface resize-none focus:ring-0 custom-scrollbar"></textarea>
+                    </div>
+                    <div id="hdRefImagesGroup" class="space-y-2" style="display:none">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">参考垫图</label>
+                        <div id="hdRefImages" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                </div>
+                <div class="pt-4 mt-auto border-t border-outline-variant flex justify-between gap-2">
+                    <button id="hdDelBtn" class="text-error hover:bg-error/10 px-3 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[18px]">delete</span> 删除
+                    </button>
+                    <div class="flex gap-2">
+                        <button id="hdCopyBtn" class="text-on-surface-variant hover:text-on-surface bg-surface-container hover:bg-surface-container-high border border-outline-variant px-3 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[18px]">content_copy</span> 复制咒语
+                        </button>
+                        <button id="hdAddLibBtn" class="text-on-surface-variant hover:text-primary bg-surface-container hover:bg-primary/10 border border-outline-variant px-3 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[18px]">bookmark_add</span> 收藏
+                        </button>
+                        <button id="hdApplyBtn" class="bg-primary text-on-primary-container hover:brightness-110 px-3 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[18px]">download_for_offline</span> 应用参数
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 指南模态框 -->
+    <div class="modal-overlay" id="infoModal">
+        <div class="modal-content !max-w-[580px] !w-[90vw]">
+            <div class="px-6 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+                <h3 class="font-bold text-on-surface m-0 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">help</span> 指南与动态
+                </h3>
+                <button id="closeInfoBtn" class="material-symbols-outlined text-outline hover:text-on-surface transition-colors text-2xl">close</button>
+            </div>
+            <div class="bg-surface-container-lowest flex flex-col" style="max-height: 80vh">
+                <!-- Tabs -->
+                <div class="flex border-b border-outline-variant px-6 gap-0">
+                    <button class="info-tab active py-3 px-4 text-sm font-bold text-primary border-b-2 border-primary -mb-px transition-colors" data-target="tab-author">关于</button>
+                    <button class="info-tab py-3 px-4 text-sm font-medium text-on-surface-variant hover:text-on-surface border-b-2 border-transparent -mb-px transition-colors" data-target="tab-tips">使用建议</button>
+                    <button class="info-tab py-3 px-4 text-sm font-medium text-on-surface-variant hover:text-on-surface border-b-2 border-transparent -mb-px transition-colors" data-target="tab-log">更新日志</button>
+                </div>
+                <!-- Tab Panes -->
+                <div class="p-6 overflow-y-auto text-sm text-on-surface leading-relaxed custom-scrollbar space-y-4">
+                    <div id="tab-author" class="info-pane space-y-4">
+                        <h4 class="font-bold text-on-surface text-base">关于本工具</h4>
+                        <p class="text-on-surface-variant"><strong class="text-on-surface">GBanavel Ai image</strong> 是一个完全运行在浏览器中的客户端应用。直接利用 fetch API 直连 Google Gemini 或 OpenAI 兼容服务器进行文生图和图生图。</p>
+                        <p class="text-on-surface-variant">零后端依赖，所有用户配置（API Key、提示词库、历史记录）均安全存储在你本地的浏览器 LocalStorage 中。</p>
+                        <div class="pt-3 mt-3 border-t border-outline-variant space-y-2">
+                            <p class="text-on-surface-variant"><strong class="text-on-surface">作者：</strong>ClaudeOpus4.6/Gemini3.1pro</p>
+                            <p class="text-on-surface-variant text-xs leading-relaxed"><strong class="text-on-surface">鸣谢名单：</strong>青空莉的生图脚本 | 类脑Angela的生图前端 | kakka的kavelai | Jasmine的场外援助</p>
+                        </div>
+                    </div>
+                    <div id="tab-tips" class="info-pane hidden space-y-4">
+                        <h4 class="font-bold text-on-surface text-base">使用技巧</h4>
+                        <div>
+                            <p class="font-bold text-on-surface mb-2">1. 接口与网络配置</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant">
+                                <li><strong class="text-on-surface">引擎切换：</strong>配置面板支持无缝切换 <strong class="text-on-surface">Google Gemini</strong> 和 <strong class="text-on-surface">OpenAI (GPT)</strong> 核心。</li>
+                                <li><strong class="text-on-surface">地址配置：</strong>使用 Gemini 时 Base URL 默认为 <code class="bg-surface-container px-1.5 py-0.5 rounded text-xs">https://generativelanguage.googleapis.com</code>。若使用 GPT 则请填入对应的 OpenAI 代理 URL。</li>
+                                <li><strong class="text-on-surface">使用代理：</strong>如果你有自建的 API 代理，将 Base URL 替换为你的代理地址即可解决跨域和网络限制问题。</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <p class="font-bold text-on-surface mb-2">2. 提示词编写指南</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant">
+                                <li><strong class="text-on-surface">黄金公式：</strong>主体描述 + 环境背景 + 细节补充 + 光影效果 + 艺术风格。<br><span class="text-xs opacity-70">例如：一只戴着墨镜的柴犬（主体），在赛博朋克城市的街道上（环境），下着霓虹色的雨（细节），电影级光影（光影），3D渲染/虚幻引擎5（风格）。</span></li>
+                                <li><strong class="text-on-surface">语言选择：</strong>虽然模型支持中文，但在要求复杂画面、精细细节时，使用<strong>英文提示词</strong>通常能获得更精准、更高质量的生成结果。</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <p class="font-bold text-on-surface mb-2">3. 垫图、重绘与模型特性</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant">
+                                <li><strong class="text-on-surface">多模型参考图支持：</strong>在左侧上传图片后，AI 会参考原图的构图、色彩和轮廓。现已支持 GPT image 2 (codex) 模型的并发垫图生成逻辑。你可以上传最多 10 张图片作为灵感参考。</li>
+                                <li><strong class="text-on-surface">局部修改：</strong>在生成的图片上点击"重绘"，输入你想要修改的细节，AI 会在保留原图主体的基础上尝试调整。</li>
+                                <li><strong class="text-on-surface">注意事项：</strong>重绘并不是真正意义的重绘，只是起到将生成的图片重新发送至模型进行处理的效果，省去了保存后重传的步骤。</li>
+                                <li><strong class="text-on-surface">并发历史记录：</strong>当批量生成（生成数量 > 1）时，系统现在会精准追踪每一张并发生成的图像，并将其与使用的垫图、参数一起完整保存到右侧的历史记录中，不再遗漏。</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <p class="font-bold text-on-surface mb-2">4. 性能与限制</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant">
+                                <li><strong class="text-on-surface">请求频率限制：</strong>如果遇到 <code class="bg-surface-container px-1.5 py-0.5 rounded text-xs">429 (Too Many Requests)</code> 错误，说明请求过于频繁。建议适当降低"生成数量"，或稍等片刻再试。</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div id="tab-log" class="info-pane hidden space-y-4">
+                        <h4 class="font-bold text-on-surface text-base">最新动态</h4>
+                        <div class="pb-4 border-b border-outline-variant/50">
+                            <p class="font-bold text-primary mb-2">2026-04-25 | UI 全面重构及多图引擎增强</p>
+                            <ul class="space-y-1 pl-4 list-disc text-on-surface-variant text-xs">
+                                <li>采用 Tailwind CSS 重写全部界面，引入 Obsidian Core 设计语言。</li>
+                                <li>实现自动/深色/亮色三档主题模式，跟随系统配色自动切换。</li>
+                                <li>支持并发调用 GPT-4 图像引擎 (gpt-image-2【codex】) 批量生成图片，且不遗漏历史记录。</li>
+                                <li>修复刷新页面后垫图消失的问题，增加并发生成时多张垫图的处理逻辑。</li>
+                                <li>历史详情弹窗新增复制咒语、应用参数按钮。</li>
+                            </ul>
+                        </div>
+                        <div class="pb-4 border-b border-outline-variant/50">
+                            <p class="font-bold text-primary mb-2">2026-03-26 | v1.0 正式版发布</p>
+                            <ul class="space-y-1 pl-4 list-disc text-on-surface-variant text-xs">
+                                <li>BanavelAi Image 诞生啦！生图工作台正式版上线。</li>
+                                <li>请留下你宝贵的修改意见，帮助我们完善这个工具。</li>
+                                <li>人话：Antigravity又CD啦，修改也只能下周见。</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <p class="font-bold text-on-surface-variant mb-2">预告 | 正在开发中...</p>
+                            <ul class="space-y-1 pl-4 list-disc text-on-surface-variant text-xs opacity-70">
+                                <li>图片生成前的智能前端预压缩功能。</li>
+                                <li>支持一键打包下载所有生成图片。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="relative">
+        <img id="lightboxImg" src="" alt="Zoomed image">
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 text-white/90 backdrop-blur-md px-5 py-2.5 rounded-full text-xs pointer-events-none flex items-center gap-2 tracking-wide shadow-lg border border-white/10 opacity-70 transition-opacity duration-300">
+            <span class="material-symbols-outlined text-[16px]">mouse</span>
+            滚轮缩放 / 拖拽漫游 / 单击关闭
+        </div>
+    </div>
+
+    <!-- Toast 通知容器 -->
+    <div id="toastContainer" class="fixed bottom-6 right-6 flex flex-col gap-2 z-[99999]"></div>
+
+    <!-- 外部脚本 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

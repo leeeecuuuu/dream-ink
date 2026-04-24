@@ -1,0 +1,235 @@
+/* ========== BanavelAi Image - Obsidian Core (Kinetic) UI ========== */
+
+/* ---------- CSS 变量 / 主题系统 ---------- */
+:root,
+html[data-theme="light"] {
+    --bg-primary: #F8F9FA; /* App background */
+    --bg-secondary: #FFFFFF; /* Main Surface */
+    --bg-tertiary: #F1F3F5; /* Sidebar / Panel */
+    --input-bg: #E9ECEF;
+    --text-primary: #111827;
+    --text-secondary: #4B5563;
+    --text-muted: #9CA3AF;
+    --border-color: rgba(0, 0, 0, 0.08);
+    --border-focus: #5E5CE6;
+    --accent: #5E5CE6;
+    --accent-hover: #4d4ad5;
+    --accent-gradient: linear-gradient(135deg, #7A78FF 0%, #5E5CE6 100%);
+    --panel-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    --glass-bg: rgba(255, 255, 255, 0.6);
+    --success-text: #059669;
+    --error-text: #DC2626;
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+}
+
+html[data-theme="dark"], html.dark {
+    --bg-primary: #0A0A0A; /* App background void */
+    --bg-secondary: #131313; /* Main Surface */
+    --bg-tertiary: #1C1B1B; /* Sidebar / Panel */
+    --input-bg: #2A2A2A;
+    --text-primary: #F5F5F7;
+    --text-secondary: #A1A1AA;
+    --text-muted: #71717A;
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-focus: #5E5CE6;
+    --accent: #5E5CE6;
+    --accent-hover: #7A78FF;
+    --accent-gradient: linear-gradient(135deg, #8D8BFF 0%, #5E5CE6 100%);
+    --panel-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    --glass-bg: rgba(28, 27, 27, 0.6);
+    --success-text: #34D399;
+    --error-text: #F87171;
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+}
+
+/* ---------- 基础 & 全局样式 ---------- */
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ---------- 滚动条 ---------- */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* ---------- 玻璃拟态 (Glass) ---------- */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border-color);
+}
+
+/* ---------- 范围选择器 (Slider) ---------- */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--input-bg);
+    border-radius: 999px;
+    outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg-secondary);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+input[type="range"]::-webkit-slider-thumb:active {
+    transform: scale(1.15);
+}
+
+/* ---------- 瀑布流布局 (Masonry) ---------- */
+.masonry {
+    column-count: 2;
+    column-gap: 1.5rem;
+}
+@media (min-width: 1280px) {
+    .masonry { column-count: 3; }
+}
+@media (min-width: 1600px) {
+    .masonry { column-count: 4; }
+}
+.masonry-item {
+    break-inside: avoid;
+    margin-bottom: 1.5rem;
+}
+
+/* ---------- 模态框 (Modals) ---------- */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem; /* 16px */
+    box-shadow: var(--panel-shadow);
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 重绘模态框 */
+.redraw-content {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    padding: 24px;
+    border-radius: 1rem;
+    width: 400px;
+    box-shadow: var(--panel-shadow);
+}
+
+/* ---------- Toast / Loading / Misc ---------- */
+.loading-dots::after {
+    content: '';
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+#toastContainer {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 9999;
+}
+.toast {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 12px 20px;
+    border-radius: 0.5rem;
+    box-shadow: var(--panel-shadow);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast.error { border-left: 4px solid var(--error-text); }
+.toast.success { border-left: 4px solid var(--success-text); }
+.toast.fade-out { animation: slideOutRight 0.3s forwards; }
+
+.spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    display: none;
+}
+.loading .spinner { display: inline-block; }
+.loading .fetch-text { display: none; }
+
+#lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+}
+#lightbox img {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes slideInRight { from { opacity: 0; transform: translateX(50px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideOutRight { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(50px); } }
+@keyframes dots { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 拖拽上传 active 状态 */
+.drag-active {
+    border-color: var(--accent) !important;
+    background: rgba(94, 92, 230, 0.1) !important;
+}
+
+/* 历史记录选中态等辅助样式 */
+.folder-item.active {
+    background: var(--input-bg);
+    color: var(--accent);
+}

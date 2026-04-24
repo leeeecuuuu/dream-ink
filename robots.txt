@@ -1,0 +1,415 @@
+# As a condition of accessing this website, you agree to abide by the following
+# content signals:
+
+# (a)  If a Content-Signal = yes, you may collect content for the corresponding
+#      use.
+# (b)  If a Content-Signal = no, you may not collect content for the
+#      corresponding use.
+# (c)  If the website operator does not include a Content-Signal for a
+#      corresponding use, the website operator neither grants nor restricts
+#      permission via Content-Signal with respect to the corresponding use.
+
+# The content signals and their meanings are:
+
+# search:   building a search index and providing search results (e.g., returning
+#           hyperlinks and short excerpts from your website's contents). Search does not
+#           include providing AI-generated search summaries.
+# ai-input: inputting content into one or more AI models (e.g., retrieval
+#           augmented generation, grounding, or other real-time taking of content for
+#           generative AI search answers).
+# ai-train: training or fine-tuning AI models.
+
+# ANY RESTRICTIONS EXPRESSED VIA CONTENT SIGNALS ARE EXPRESS RESERVATIONS OF
+# RIGHTS UNDER ARTICLE 4 OF THE EUROPEAN UNION DIRECTIVE 2019/790 ON COPYRIGHT
+# AND RELATED RIGHTS IN THE DIGITAL SINGLE MARKET.
+
+# BEGIN Cloudflare Managed content
+
+User-agent: *
+Content-Signal: search=yes,ai-train=no
+Allow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: CloudflareBrowserRenderingCrawler
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /
+
+# END Cloudflare Managed Content
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BanavelAi Image 1.0</title>
+    <meta name="description" content="图像生成工作台">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <!-- 外部样式表 -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="top-bar">
+        <div class="logo">🍌 BanavelAi Image 1.0</div>
+        <div class="actions">
+            <button class="theme-toggle" id="infoBtn" title="指南与动态"
+                style="width: auto; padding: 0 12px; font-size: 0.9rem; font-weight: 500;">指南</button>
+            <button class="theme-toggle" id="apiConfigBtn" title="API 设置"
+                style="width: auto; padding: 0 12px; font-size: 0.9rem; font-weight: 500;">配置</button>
+            <button class="theme-toggle" id="themeToggle" title="切换主题"
+                style="width: auto; padding: 0 12px; font-size: 0.9rem; font-weight: 500;">亮色</button>
+        </div>
+    </div>
+
+    <div class="layout">
+        <div class="sidebar" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="panel" style="flex: 1; display: flex; flex-direction: column; padding: 20px;">
+                <div class="panel-title"
+                    style="justify-content: space-between; margin-bottom: 12px; border:none; padding-bottom:0;">
+                    <div style="font-size: 1.1rem;"><span class="icon"></span> 灵感吟唱</div>
+                    <button class="header-btn" id="openLibraryBtn" style="font-size: 0.9rem;">咒语书</button>
+                </div>
+                <div class="form-group"
+                    style="flex: 1; margin-bottom: 0; display: flex; flex-direction: column; position: relative;">
+                    <textarea id="promptInput" placeholder="请输入你想要生成的画面描述..."
+                        style="flex: 1; min-height: 180px; font-size: 1rem; padding: 16px; border-radius: 12px; resize: none;"></textarea>
+                </div>
+            </div>
+
+            <div class="panel" style="padding: 16px 20px;">
+                <div class="form-group">
+                    <label>画布比例</label>
+                    <select id="ratioSelect">
+                        <option value="" selected>Auto</option>
+                        <option value="1:1">1:1 正方形</option>
+                        <option value="16:9">16:9 宽屏壁纸</option>
+                        <option value="9:16">9:16 手机竖屏</option>
+                        <option value="3:4">3:4 经典肖像</option>
+                        <option value="4:3">4:3 传统横版</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>画面细节</label>
+                    <select id="qualitySelect">
+                        <option value="standard" selected>标准品质 (Standard)</option>
+                        <option value="high">高品质 (High Details 2K)</option>
+                        <option value="ultra">极致画质 (Ultra 4K Masterpiece)</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-top: 16px; margin-bottom: 0;">
+                    <label style="display: flex; justify-content: space-between;">
+                        <span>连发数量</span>
+                        <span id="batchValue" style="color: var(--accent); font-weight: bold;">1</span>
+                    </label>
+                    <input type="range" id="batchSelect" min="1" max="4" value="1" step="1"
+                        style="width: 100%; margin-top: 8px;">
+                </div>
+            </div>
+
+            <div class="panel" style="padding: 16px 20px;">
+                <div class="panel-title" style="margin-bottom: 12px;"><span class="icon"></span> 垫图参考 (最多 10 张)
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <input type="file" id="imageInput" accept="image/*" multiple title="Up to 10 images">
+                    <div id="imagePreviewList" class="image-preview-list"></div>
+                </div>
+            </div>
+
+            <div id="paramPreview"
+                style="font-size: 0.82rem; color: var(--text-muted); text-align: center; margin-bottom: 12px; font-weight: 500; min-height: 1.2rem; transition: color 0.3s;">
+            </div>
+            <button class="btn-primary" id="runBtn"
+                style="padding: 18px; font-size: 1.1rem; box-shadow: 0 8px 25px var(--glow-color);">开始创造</button>
+            <div id="statusBox" class="status"></div>
+        </div>
+
+        <div class="main-content">
+            <div class="panel" style="min-height: 85vh;">
+                <div class="panel-title"><span class="icon"></span> 生成结果</div>
+                <div id="emptyState">
+                    <div class="empty-icon"></div>
+                    <div>配置左侧参数并点击生成<br>精美画面将呈现在这里</div>
+                </div>
+                <div id="resultArea" style="display: none;">
+                    <div class="result-section" id="textResultSection">
+                        <div class="result-label">画面描述</div>
+                        <div id="textOutput" class="output-text"></div>
+                    </div>
+                    <div class="result-section">
+                        <div class="result-label">生成图像<button class="header-btn" id="toggleCompareBtn"
+                                style="margin-left: auto; font-size: 0.8rem;">[ 切换对比模式 ]</button></div>
+                        <div id="imageGallery" class="result-gallery"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="history-sidebar" id="historySidebar">
+            <div class="panel" style="height: 100%; display: flex; flex-direction: column; padding: 16px;">
+                <div class="panel-title" style="margin-bottom: 12px; justify-content: space-between;">
+                    <div><span class="icon"></span> 生成历史</div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="header-btn" id="exportHistoryBtn" title="导出历史记录">⬇️导出</button>
+                        <button class="header-btn" id="importHistoryBtn" title="导入历史记录">⬆️导入</button>
+                        <input type="file" id="importHistoryInput" accept=".json" style="display: none;">
+                        <button class="header-btn" id="clearHistoryBtn" style="color: var(--error-text);">清空</button>
+                    </div>
+                </div>
+                <div class="history-list" id="historyList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 咒语书模态框 -->
+    <div class="modal-overlay" id="libraryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>咒语书</h3>
+                <button class="modal-close" id="closeLibraryBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-sidebar">
+                    <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 12px;">
+                        分类目录</div>
+                    <div id="folderList"></div>
+                    <div style="margin-top: 16px; display: flex; gap: 8px;">
+                        <input type="text" id="newFolderInput" placeholder="新分类名..."
+                            style="padding: 6px 10px; font-size: 0.8rem;">
+                        <button class="btn-primary" id="addFolderBtn"
+                            style="padding: 6px; width: auto; font-size: 0.8rem;">+ 添加</button>
+                    </div>
+                </div>
+                <div class="modal-main">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h4 id="currentFolderName" style="margin: 0; color: var(--text-primary);">未选择分类</h4>
+                    </div>
+                    <div id="promptGrid" class="prompt-grid"></div>
+                </div>
+            </div>
+            <div class="modal-actions" style="align-items: center; gap: 12px;">
+                <input type="text" id="newPromptName" placeholder="提示词名称 (必填)" style="width: 140px; padding: 8px 10px;">
+                <input type="text" id="newPromptContent" placeholder="咒语内容 (必填)" style="flex: 1; padding: 8px 10px;">
+                <div style="display: flex; align-items: center; position: relative;">
+                    <label for="newPromptImg"
+                        style="cursor: pointer; display: flex; align-items: center; background: var(--input-bg); border: var(--input-border); padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: var(--accent); transition: 0.2s; margin: 0;">
+                        附图</label>
+                    <input type="file" id="newPromptImg" accept="image/*" style="display: none;">
+                    <span id="thumbStatus"
+                        style="position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 0.7rem; color: var(--success-text); display: none; white-space: nowrap;">
+                        已就绪</span>
+                </div>
+                <button class="btn-primary" id="addPromptBtn" style="width: auto; padding: 8px 20px;">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重绘模态框 -->
+    <div class="modal-overlay" id="redrawModal">
+        <div class="redraw-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: var(--text-primary);"> 重绘变体</h3>
+                <button onclick="document.getElementById('redrawModal').style.display='none'"
+                    style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;">✕</button>
+            </div>
+            <div
+                style="background: var(--bg-tertiary); border-radius: 12px; height: 160px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 20px;">
+                <img id="redrawSourceThumb" src="" style="max-height: 100%; max-width: 100%; object-fit: contain;">
+            </div>
+            <div class="form-group">
+                <label>修改建议</label>
+                <input type="text" id="redrawPrompt" placeholder="例如：赛博朋克风格 / 加入下雨效果..." maxlength="50">
+            </div>
+            <button class="btn-primary" id="confirmRedrawBtn" style="width: 100%; margin-top: 10px;">确认重绘</button>
+        </div>
+    </div>
+
+    <!-- API 配置模态框 -->
+    <div class="modal-overlay" id="apiConfigModal">
+        <div class="modal-content" style="width: 500px; height: auto; border-radius: 20px;">
+            <div class="modal-header">
+                <h3>API配置</h3>
+                <button class="modal-close" id="closeApiConfigBtn">&times;</button>
+            </div>
+            <div class="modal-body" style="flex-direction: column; padding: 24px; gap: 20px; overflow-y: visible;">
+                <div
+                    style="background: var(--bg-tertiary); padding: 16px; border-radius: 12px; border: var(--panel-border);">
+                    <h4 style="margin-bottom: 12px; color: var(--accent); font-size: 1rem;">配置管理</h4>
+                    <div class="form-group">
+                        <label>加载配置</label>
+                        <select id="apiProfileSelect">
+                            <option value="">-- 选择已保存的配置 --</option>
+                        </select>
+                    </div>
+                    <div class="api-profile-row">
+                        <input type="text" id="apiProfileName" placeholder="配置名称">
+                        <button class="fetch-btn" id="saveProfileBtn" style="color: var(--success-text);">保存</button>
+                        <button class="fetch-btn" id="delProfileBtn" style="color: var(--error-text);">删除</button>
+                    </div>
+                </div>
+                <div
+                    style="background: var(--bg-tertiary); padding: 16px; border-radius: 12px; border: var(--panel-border);">
+                    <h4 style="margin-bottom: 12px; color: var(--accent); font-size: 1rem;">图像生成服务</h4>
+                    <div class="form-group">
+                        <label>接口地址</label>
+                        <input type="text" id="baseUrl" placeholder="例如：https://generativelanguage.googleapis.com">
+                    </div>
+                    <div class="form-group">
+                        <label>密钥</label>
+                        <input type="password" id="apiKey" placeholder="sk-AIzaSy...">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>模型</label>
+                        <div class="model-row">
+                            <select id="modelSelect" style="display: none;"></select>
+                            <input type="text" id="modelInput" placeholder="模型名称，例如 gemini 3-pro-image">
+                            <button class="fetch-btn" id="fetchModelsBtn">
+                                <div class="spinner"></div>
+                                <span class="fetch-text">获取</span>
+                            </button>
+                        </div>
+                        <div id="modelStatus" class="model-status">配置并获取模型以开始</div>
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 16px 24px; border-top: var(--panel-border); text-align: right;">
+                <button class="btn-primary" id="applyApiConfigBtn" style="width: auto; padding: 10px 24px;">
+                    应用并关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 灯箱 -->
+    <div id="lightbox" onclick="this.style.display='none'">
+        <button class="lightbox-close">✕</button>
+        <img id="lightboxImg" src="">
+    </div>
+
+    <!-- Toast 通知容器 -->
+    <div id="toastContainer"></div>
+
+    <!-- 指南模态框 -->
+    <div class="modal-overlay" id="infoModal">
+        <div class="modal-content" style="width: 550px; height: auto; max-height: 85vh; border-radius: 20px;">
+            <div class="modal-header">
+                <h3>指南与动态</h3>
+                <button class="modal-close" id="closeInfoBtn">&times;</button>
+            </div>
+            <div class="modal-body" style="flex-direction: column; padding: 0;">
+                <div class="info-tabs">
+                    <button class="info-tab active" data-target="tab-author">关于</button>
+                    <button class="info-tab" data-target="tab-tips">使用建议</button>
+                    <button class="info-tab" data-target="tab-log">更新日志</button>
+                </div>
+                <div class="info-content-area" style="padding: 24px; overflow-y: auto; max-height: 60vh;">
+                    <div id="tab-author" class="info-pane active">
+                        <h4>关于本工具</h4>
+                        <p><strong>BanavelAi Image</strong> 是一个完全运行在浏览器中的客户端应用。直接利用 fetch API 直连 Google Gemini
+                            官方服务器进行文生图和图生图。</p>
+                        <p>零后端依赖，所有用户配置（API Key、提示词库、历史记录）均安全存储在你本地的浏览器 LocalStorage 中。</p>
+                        <p style="margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+                            <strong>作者：</strong>ClaudeOpus4.6/Gemini3.1pro
+                            <a href="https://gemini.google.com/gem/coding-partner" target="_blank"
+                                style="color: var(--accent); text-decoration: underline; margin-left: 12px; font-weight: 500;">
+                                打赏作者</a>
+                        <p style="margin-top: 8px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.6;">
+                            <strong>鸣谢名单：</strong>青空莉的生图脚本| 类脑Angela的生图前端 |kakka的kavelai|Jasmine的场外援助
+                        </p>
+
+                    </div>
+                    <div id="tab-tips" class="info-pane">
+                        <h4>使用技巧</h4>
+
+                        <p style="margin-top: 12px;"><strong>1. 接口与网络配置</strong></p>
+                        <ul style="margin-bottom: 12px; padding-left: 20px;">
+                            <li><strong>直连官方：</strong>Base URL 默认填写
+                                <code>https://generativelanguage.googleapis.com</code>。请确保你的网络环境可以正常访问 Google 服务。
+                            </li>
+                            <li><strong>使用代理：</strong>如果你有自建的 API 代理，将 Base URL
+                                替换为你的代理地址即可解决跨域和网络限制问题。</li>
+                        </ul>
+
+                        <p><strong>2. 提示词编写指南</strong></p>
+                        <ul style="margin-bottom: 12px; padding-left: 20px;">
+                            <li><strong>黄金公式：</strong>主体描述 + 环境背景 + 细节补充 + 光影效果 + 艺术风格。<br>
+                                <span style="color: var(--text-muted); font-size: 0.85rem;">例如：一只戴着墨镜的柴犬
+                                    (主体)，在赛博朋克城市的街道上 (环境)，下着霓虹色的雨 (细节)，电影级光影 (光影)，3D 渲染/虚幻引擎5 (风格)。</span>
+                            </li>
+                            <li><strong>语言选择：</strong>虽然模型支持中文，但在要求复杂画面、精细细节时，使用<strong>英文提示词</strong>通常能获得更精准、更高质量的生成结果。
+                            </li>
+                        </ul>
+
+                        <p><strong>3. 垫图与重绘 (图生图)</strong></p>
+                        <ul style="margin-bottom: 12px; padding-left: 20px;">
+                            <li><strong>参考图作用：</strong>在左侧上传图片后，AI 会参考原图的构图、色彩和轮廓。你可以上传最多 10 张图片作为灵感参考。</li>
+                            <li><strong>局部修改：</strong>在生成的图片上点击"重绘"，输入你想要修改的细节（例如："把背景换成雪山"），AI 会在保留原图主体的基础上尝试调整。</li>
+                            <li><strong>注意事项：</strong>重绘并不是真正意义的重绘，只是起到一个把生成的图片重新发送至模型进行处理的效果，省去了你保存后重传的步骤。</li>
+                        </ul>
+
+                        <p><strong>4. 性能与限制</strong></p>
+                        <ul style="margin-bottom: 12px; padding-left: 20px;">
+                            <li><strong>请求频率限制：</strong>如果遇到 <code>429 (Too Many Requests)</code>
+                                错误提示，说明请求过于频繁。建议适当降低"连发数量"，或稍等片刻再试。</li>
+                        </ul>
+                    </div>
+
+                    <div id="tab-log" class="info-pane">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h4 style="margin: 0;">最新动态</h4>
+                        </div>
+
+                        <div
+                            style="margin-bottom: 16px; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px;">
+                            <strong style="color: var(--accent); font-size: 0.95rem;">2026-03-26 | v1.0正式版发布</strong>
+                            <ul
+                                style="margin-top: 6px; padding-left: 20px; color: var(--text-secondary); font-size: 0.88rem;">
+                                <li>BanavelAi Image诞生啦！生图工作台正式版上线。</li>
+                                <li>请留下你宝贵的修改意见，帮助我们完善这个工具。</li>
+                                <li>人话：Antigravity又CD啦，修改也只能下周见。</li>
+                            </ul>
+                        </div>
+                        <div style="margin-bottom: 16px; padding-bottom: 12px;">
+                            <strong style="color: var(--text-muted); font-size: 0.95rem;">预告 | 正在开发中...</strong>
+                            <ul
+                                style="margin-top: 6px; padding-left: 20px; color: var(--text-muted); font-size: 0.88rem;">
+                                <li>图片生成前的智能前端预压缩功能。</li>
+                                <li>支持一键打包下载所有生成图片。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 外部脚本 -->
+        <script src="app.js"></script>
+</body>
+
+</html>
