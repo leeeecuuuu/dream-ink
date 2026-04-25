@@ -67,6 +67,7 @@
             </button>
         </div>
         <div class="flex items-center gap-4">
+            <span id="engineBadge" class="gemini">✦ Banana · Gemini</span>
             <button id="infoBtn" class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high text-sm font-medium">
                 <span class="material-symbols-outlined text-[18px]">explore</span> 指南
             </button>
@@ -82,8 +83,28 @@
     <main class="flex flex-1 pt-16 overflow-hidden">
         
         <!-- Left Sidebar (Generator Controls) -->
-        <aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-80 bg-surface-container-low border-r border-outline-variant flex flex-col p-6 font-sans text-sm font-medium z-40 overflow-y-auto custom-scrollbar">
+        <aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-[380px] bg-surface-container-low border-r border-outline-variant flex flex-col p-6 font-sans text-sm font-medium z-40 overflow-y-auto custom-scrollbar">
             <div class="space-y-6 flex-1 pt-2">
+
+                <!-- 引擎快速切换 -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">生成引擎</label>
+                    <div id="engineSwitcher" class="flex gap-1.5 p-1 bg-surface-container rounded-xl border border-outline-variant">
+                        <button id="engineBanana" data-engine="gemini" class="engine-btn active flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all">
+                            <span class="material-symbols-outlined text-[14px]">auto_awesome</span>
+                            Banana
+                        </button>
+                        <button id="engineImage2" data-engine="openai" class="engine-btn flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all">
+                            <span class="material-symbols-outlined text-[14px]">image</span>
+                            GPT Image-2
+                        </button>
+                    </div>
+                    <div id="engineModelHint" class="text-[10px] text-on-surface-variant font-medium px-1 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[12px]">model_training</span>
+                        <span id="engineModelHintText">加载中...</span>
+                    </div>
+                </div>
+
                 <!-- Prompt Input -->
                 <div class="space-y-2 relative">
                     <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画面描述</label>
@@ -92,16 +113,33 @@
                 
                 <!-- Parameters -->
                 <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-2">
-                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画幅比例</label>
-                        <select id="ratioSelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
-                            <option value="" selected>自动 (Auto)</option>
-                            <option value="1:1">1:1 正方形</option>
-                            <option value="16:9">16:9 宽屏壁纸</option>
-                            <option value="9:16">9:16 手机竖屏</option>
-                            <option value="3:4">3:4 经典肖像</option>
-                            <option value="4:3">4:3 传统横版</option>
-                        </select>
+                    <div class="space-y-2 relative" id="ratioWidget">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画幅尺寸</label>
+                        
+                        <!-- 假下拉按钮 -->
+                        <div id="ratioSelectBtn" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer flex justify-between items-center hover:bg-surface-container transition-colors">
+                            <span id="ratioSelectText" class="font-mono">1024 x 1024 (1:1 高清)</span>
+                            <span class="material-symbols-outlined text-[16px] text-on-surface-variant">unfold_more</span>
+                        </div>
+                        <input type="hidden" id="ratioSelect" value="1024x1024">
+
+                        <!-- 下拉面板 -->
+                        <div id="ratioDropdown" class="hidden absolute top-[60px] left-0 right-0 bg-surface-container-highest border border-outline-variant rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto custom-scrollbar flex flex-col py-1">
+                            <!-- JS 动态生成 -->
+                        </div>
+
+                        <!-- 自定义输入框 (分离宽高) -->
+                        <div id="customRatioContainer" class="hidden mt-2 flex items-center gap-2 bg-surface-container-lowest border border-outline-variant p-1.5 rounded-lg">
+                            <div class="flex-1 relative">
+                                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-on-surface-variant font-bold">W</span>
+                                <input type="number" id="customWidth" class="w-full bg-transparent text-xs text-on-surface py-1 pl-6 pr-1 text-center focus:outline-none font-mono placeholder:text-outline/50" placeholder="宽" min="256" max="8192" step="64">
+                            </div>
+                            <span class="text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">close</span></span>
+                            <div class="flex-1 relative">
+                                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-on-surface-variant font-bold">H</span>
+                                <input type="number" id="customHeight" class="w-full bg-transparent text-xs text-on-surface py-1 pl-6 pr-1 text-center focus:outline-none font-mono placeholder:text-outline/50" placeholder="高" min="256" max="8192" step="64">
+                            </div>
+                        </div>
                     </div>
                     <div class="space-y-2">
                         <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">图像质量</label>
@@ -129,7 +167,7 @@
                             <option value="" selected>默认</option>
                             <option value="transparent">透明背景</option>
                             <option value="opaque">不透明</option>
-                            <option value="white">纯白背景</option>
+                            <option value="auto">自动背景</option>
                         </select>
                     </div>
                 </div>
@@ -167,7 +205,7 @@
         </aside>
 
         <!-- Center Workspace -->
-        <section class="flex-1 ml-80 mr-80 bg-surface-container-lowest min-h-screen overflow-y-auto p-8 relative custom-scrollbar">
+        <section class="flex-1 ml-[380px] mr-80 bg-surface-container-lowest min-h-screen overflow-y-auto p-8 relative custom-scrollbar">
             
             <div class="max-w-[1400px] mx-auto">
                 <div id="emptyState" class="flex flex-col items-center justify-center text-center space-y-6 h-[70vh]">
@@ -196,9 +234,6 @@
                             <div class="flex items-center gap-2">
                                 <button id="clearGalleryBtn" class="text-[11px] font-bold text-error hover:text-white hover:bg-error bg-error/10 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1">
                                     <span class="material-symbols-outlined text-[14px]">delete_sweep</span> 清空工坊
-                                </button>
-                                <button id="toggleCompareBtn" class="text-[11px] font-bold text-primary hover:text-primary-fixed-variant bg-primary/10 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1">
-                                    <span class="material-symbols-outlined text-[14px]">view_carousel</span> 切换视图
                                 </button>
                             </div>
                         </div>
@@ -333,29 +368,87 @@
                         <input type="text" id="baseUrl" placeholder="例如：https://generativelanguage.googleapis.com" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
                     </div>
                     <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">协议类型</label>
-                        <select id="apiTypeSelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
-                            <option value="gemini" selected>Google Gemini 原生接口</option>
-                            <option value="openai">OpenAI 兼容接口</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1.5">
                         <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">密钥 (API Key)</label>
                         <input type="password" id="apiKey" placeholder="sk-AIzaSy..." class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
                     </div>
+                    <!-- 隐藏的 apiTypeSelect，由引擎切换器驱动，不再暴露给用户 -->
+                    <select id="apiTypeSelect" class="hidden">
+                        <option value="gemini">gemini</option>
+                        <option value="openai">openai</option>
+                    </select>
+                    <!-- 隐藏的通用 modelInput / modelSelect，由下方双引擎配置驱动 -->
+                    <select id="modelSelect" class="hidden"></select>
+                    <input type="text" id="modelInput" class="hidden">
+                </div>
+
+                <!-- 双引擎模型配置 -->
+                <div class="bg-surface-container border border-outline-variant p-4 rounded-xl space-y-4">
+                    <div class="flex items-center justify-between mb-1">
+                        <h4 class="text-sm font-bold text-primary">引擎模型配置</h4>
+                        <button id="fetchModelsBtn" class="bg-surface-container-highest hover:bg-primary/10 text-on-surface hover:text-primary border border-outline-variant px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
+                            <div class="spinner"></div>
+                            <span class="material-symbols-outlined text-[14px] fetch-text-icon">sync</span>
+                            <span class="fetch-text">获取模型列表</span>
+                        </button>
+                    </div>
+                    <div id="modelStatus" class="text-[10px] text-on-surface-variant -mt-2">填入模型名称，或点击右上角按钮自动获取</div>
+
+                    <!-- Banana · Gemini -->
                     <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">模型名称</label>
-                        <div class="flex gap-2">
-                            <select id="modelSelect" class="hidden w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface"></select>
-                            <input type="text" id="modelInput" placeholder="例如 gemini-3-pro" class="flex-1 bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
-                            <button id="fetchModelsBtn" class="bg-surface-container-highest hover:bg-outline-variant/30 text-on-surface px-4 rounded-md text-xs font-bold transition-colors whitespace-nowrap">
-                                <div class="spinner"></div>
-                                <span class="fetch-text">获取列表</span>
-                            </button>
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
+                                <span class="material-symbols-outlined text-[11px]">auto_awesome</span> Banana · Gemini
+                            </span>
+                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">模型</label>
                         </div>
-                        <div id="modelStatus" class="text-[10px] mt-1 text-on-surface-variant">配置并获取模型以开始</div>
+                        <!-- 获取列表后显示下拉，默认显示文本框 -->
+                        <select id="modelGeminiSelect" class="hidden w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs"></select>
+                        <input type="text" id="modelGemini" placeholder="gemini-2.0-flash-preview-image-generation"
+                            class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs">
+                    </div>
+
+                    <!-- GPT Image-2 -->
+                    <div class="space-y-1.5">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-success/10 text-success px-2 py-0.5 rounded-full border border-success/20">
+                                <span class="material-symbols-outlined text-[11px]">image</span> GPT Image-2
+                            </span>
+                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">模型</label>
+                        </div>
+                        <!-- 获取列表后显示下拉，默认显示文本框 -->
+                        <select id="modelOpenaiSelect" class="hidden w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs"></select>
+                        <input type="text" id="modelOpenai" placeholder="gpt-image-1"
+                            class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs">
                     </div>
                 </div>
+
+                <!-- 本地文件夹存储 -->
+                <div class="bg-surface-container border border-outline-variant p-4 rounded-xl space-y-3" id="localFsSection">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-sm font-bold text-primary flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-[16px]">folder_open</span>
+                            本地文件夹存储
+                        </h4>
+                        <span id="localFsBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full border hidden"></span>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant leading-relaxed">
+                        绑定本地文件夹后，生成的图片和所有数据将直接写入磁盘，不再占用浏览器缓存空间。<br>
+                        <span class="text-outline">仅支持 Chrome / Edge 86+ 浏览器。</span>
+                    </p>
+                    <div id="localFsPath" class="hidden text-[11px] font-mono text-on-surface bg-surface-container-highest border border-outline-variant rounded-md px-3 py-2 break-all"></div>
+                    <div class="flex gap-2">
+                        <button id="pickFolderBtn" class="flex-1 flex items-center justify-center gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors">
+                            <span class="material-symbols-outlined text-[16px]">folder</span> 选择文件夹
+                        </button>
+                        <button id="clearFolderBtn" class="hidden flex items-center justify-center gap-1.5 bg-error/10 hover:bg-error/20 text-error border border-error/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors">
+                            <span class="material-symbols-outlined text-[16px]">link_off</span> 解除绑定
+                        </button>
+                    </div>
+                    <div id="localFsNotSupported" class="hidden text-[11px] text-error font-medium">
+                        ⚠️ 当前浏览器不支持 File System Access API，请使用 Chrome 或 Edge。
+                    </div>
+                </div>
+
             </div>
             <div class="px-6 py-4 border-t border-outline-variant bg-surface-container text-right">
                 <button id="applyApiConfigBtn" class="bg-primary text-on-primary-container px-6 py-2 rounded-lg font-bold text-sm hover:brightness-110 transition-all">确认 / 关闭</button>
@@ -477,32 +570,62 @@
                     </div>
                     <div id="tab-log" class="info-pane hidden space-y-4">
                         <h4 class="font-bold text-on-surface text-base">最新动态</h4>
+
                         <div class="pb-4 border-b border-outline-variant/50">
-                            <p class="font-bold text-primary mb-2">2026-04-25 | UI 全面重构及多图引擎增强</p>
-                            <ul class="space-y-1 pl-4 list-disc text-on-surface-variant text-xs">
-                                <li>采用 Tailwind CSS 重写全部界面，引入 Obsidian Core 设计语言。</li>
-                                <li>实现自动/深色/亮色三档主题模式，跟随系统配色自动切换。</li>
-                                <li>支持并发调用 GPT-4 图像引擎 (gpt-image-2【codex】) 批量生成图片，且不遗漏历史记录。</li>
-                                <li>修复刷新页面后垫图消失的问题，增加并发生成时多张垫图的处理逻辑。</li>
-                                <li>历史详情弹窗新增复制咒语、应用参数按钮。</li>
+                            <p class="font-bold text-primary mb-1">2026-04-25</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">这次更新比较大，主要解决"用着用着数据就没了"这个老大难。</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
+                                <li>🗂️ <strong class="text-on-surface">图片终于能存到硬盘了！</strong>在配置里授权一个本地文件夹，之后生成的图、历史、咒语书通通写到你电脑里，清缓存也不会丢。</li>
+                                <li>⚙️ <strong class="text-on-surface">API 配置也能记住了。</strong>Key、接口地址这些会自动保存到本地，下次打开直接就能用，不用重新填一遍。</li>
+                                <li>🖼️ <strong class="text-on-surface">历史记录放大图片清楚了。</strong>以前点开历史详情放大是模糊的小图，现在加载的是原图，清清楚楚。</li>
+                                <li>📎 <strong class="text-on-surface">垫图不丢了。</strong>历史里能看到当时用的参考垫图；刷新页面后左边的垫图也会自动恢复，不用重传。</li>
+                                <li>📖 <strong class="text-on-surface">咒语书卡片有图了。</strong>从历史收藏咒语时，图片跟着一起存进去，咒语书不再是一堆空白格子。</li>
+                                <li>⏱️ <strong class="text-on-surface">生成时能看到等了多少秒了。</strong>状态栏和图片占位格里会实时显示秒数，不用干等着猜什么时候出。</li>
+                                <li>🔇 <strong class="text-on-surface">生成完不再弹文字了。</strong>以前图生出来会突然蹦出一段文字描述，现在修掉了，干净很多。</li>
+                                <li>🖼️ <strong class="text-on-surface">历史小图立刻就能看到了。</strong>新生成的图马上出现在历史里，不再需要刷新才能显示。</li>
                             </ul>
                         </div>
+
                         <div class="pb-4 border-b border-outline-variant/50">
-                            <p class="font-bold text-primary mb-2">2026-03-26 | v1.0 正式版发布</p>
-                            <ul class="space-y-1 pl-4 list-disc text-on-surface-variant text-xs">
-                                <li>BanavelAi Image 诞生啦！生图工作台正式版上线。</li>
-                                <li>请留下你宝贵的修改意见，帮助我们完善这个工具。</li>
-                                <li>人话：Antigravity又CD啦，修改也只能下周见。</li>
+                            <p class="font-bold text-primary mb-1">2026-04-25（早些时候）</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">主要把"选尺寸"从玄学变成了正常人能看懂的样子。</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
+                                <li>📐 <strong class="text-on-surface">画幅选择大改版。</strong>下拉菜单重新设计了，分了组、加了标注，横版竖版正方形一眼就能找到，支持到 4K。</li>
+                                <li>✏️ <strong class="text-on-surface">自定义尺寸不用拼字符串了。</strong>宽和高现在是两个独立的输入框，告别"1024x768"这种容易手抖打错的格式。</li>
+                                <li>🔀 <strong class="text-on-surface">切换引擎不会互相覆盖模型名了。</strong>Gemini 和 GPT 各自记自己的模型配置，切来切去不会把对方盖掉。</li>
+                                <li>🔍 <strong class="text-on-surface">放大看图不飘了。</strong>以前滚轮缩放图片会漂移跑位，现在稳稳跟着鼠标缩放，体验舒服多了。</li>
                             </ul>
                         </div>
+
+                        <div class="pb-4 border-b border-outline-variant/50">
+                            <p class="font-bold text-primary mb-1">2026-04-25（更早）</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">大改版，界面全新出炉，认不出来正常。</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
+                                <li>🎨 全新界面，深色模式，跟系统走自动切亮色/暗色，眼睛舒服了。</li>
+                                <li>⚡ 同时支持 Gemini 和 GPT 两套生图引擎，左上角一键切换。</li>
+                                <li>📦 批量生成多张图，每一张都会完整记到历史里，一张都不会漏。</li>
+                                <li>🔖 历史详情里可以直接复制咒语，或者一键把参数填回左边重新生成。</li>
+                            </ul>
+                        </div>
+
+                        <div class="pb-4 border-b border-outline-variant/50">
+                            <p class="font-bold text-primary mb-1">2026-03-26 · 诞生</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
+                                <li>🎉 BanavelAi Image 开张了！欢迎来玩。</li>
+                                <li>有什么想要的功能或者 Bug，欢迎反馈～</li>
+                                <li>人话：Antigravity 又 CD 了，有啥问题下周再说。</li>
+                            </ul>
+                        </div>
+
                         <div>
-                            <p class="font-bold text-on-surface-variant mb-2">预告 | 正在开发中...</p>
+                            <p class="font-bold text-on-surface-variant mb-2">🔮 接下来想做的...</p>
                             <ul class="space-y-1 pl-4 list-disc text-on-surface-variant text-xs opacity-70">
-                                <li>图片生成前的智能前端预压缩功能。</li>
-                                <li>支持一键打包下载所有生成图片。</li>
+                                <li>上传图片前自动压缩，省流量省时间。</li>
+                                <li>多台设备之间图片同步（在想方案，别催）。</li>
                             </ul>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>

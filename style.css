@@ -195,6 +195,7 @@ input[type="range"]::-webkit-slider-thumb:active {
 }
 .loading .spinner { display: inline-block; }
 .loading .fetch-text { display: none; }
+.loading .fetch-text-icon { display: none; }
 
 #lightbox {
     display: none;
@@ -232,4 +233,48 @@ input[type="range"]::-webkit-slider-thumb:active {
 .folder-item.active {
     background: var(--input-bg);
     color: var(--accent);
+}
+
+/* ---------- 引擎切换器 (Engine Switcher) ---------- */
+.engine-btn {
+    color: var(--text-secondary);
+    background: transparent;
+    position: relative;
+    transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.engine-btn:hover {
+    color: var(--text-primary);
+    background: var(--input-bg);
+}
+.engine-btn.active {
+    color: #fff;
+    background: var(--accent);
+    box-shadow: 0 2px 12px rgba(94, 92, 230, 0.45);
+}
+.engine-btn.active .material-symbols-outlined {
+    color: #fff;
+}
+
+/* 引擎徽章 (header 右上角) */
+#engineBadge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
+    color: var(--text-secondary);
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+#engineBadge.openai {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success-text);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+#engineBadge.gemini {
+    background: rgba(94, 92, 230, 0.15);
+    color: var(--accent);
+    border-color: rgba(94, 92, 230, 0.3);
 }

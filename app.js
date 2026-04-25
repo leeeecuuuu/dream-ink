@@ -20,11 +20,158 @@ const idb = {
     async get(k) { const db = await this._open(); return new Promise((ok, no) => { const r = db.transaction('appData', 'readonly').objectStore('appData').get(k); r.onsuccess = () => ok(r.result); r.onerror = e => no(e.target.error); }); }
 };
 
+// ========== 本地文件夹存储 (File System Access API) ==========
+const localFS = {
+    handle: null,
+    _supported: typeof window !== 'undefined' && 'showDirectoryPicker' in window,
+
+    isActive() { return !!this.handle; },
+
+    _updateUI() {
+        const badge = $('localFsBadge'), path = $('localFsPath'), clearBtn = $('clearFolderBtn'), notSup = $('localFsNotSupported');
+        if (!this._supported) { if (notSup) notSup.classList.remove('hidden'); return; }
+        if (this.handle) {
+            if (badge) { badge.textContent = '✅ 已绑定'; badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full border bg-success/10 text-success border-success/20'; badge.classList.remove('hidden'); }
+            if (path) { path.textContent = `📁 ${this.handle.name}`; path.classList.remove('hidden'); }
+            if (clearBtn) clearBtn.classList.remove('hidden');
+        } else {
+            if (badge) badge.classList.add('hidden');
+            if (path) path.classList.add('hidden');
+            if (clearBtn) clearBtn.classList.add('hidden');
+        }
+    },
+
+    async pick() {
+        if (!this._supported) return;
+        try {
+            this.handle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'pictures' });
+            await idb.set('nanscript_fs_handle', this.handle);
+            this._updateUI();
+            // 立即将当前 API 配置写入本地文件夹
+            try { await this.saveConfig(); } catch(e) { console.error('saveConfig 失败:', e); }
+            showToast(`✅ 已绑定本地文件夹：${this.handle.name}`);
+        } catch (e) {
+            if (e.name !== 'AbortError') showToast('选择文件夹失败', 'error');
+        }
+    },
+
+    async restore() {
+        if (!this._supported) return false;
+        try {
+            const h = await idb.get('nanscript_fs_handle');
+            if (!h || typeof h.queryPermission !== 'function') return false;
+            const perm = await h.queryPermission({ mode: 'readwrite' });
+            if (perm === 'granted') { this.handle = h; this._updateUI(); return true; }
+            if (perm === 'prompt') {
+                const granted = await h.requestPermission({ mode: 'readwrite' });
+                if (granted === 'granted') { this.handle = h; this._updateUI(); return true; }
+            }
+        } catch (e) { console.warn('localFS.restore:', e); }
+        return false;
+    },
+
+    async clear() {
+        this.handle = null;
+        await idb.set('nanscript_fs_handle', null);
+        this._updateUI();
+        showToast('本地文件夹已解除绑定，切换为浏览器存储模式');
+    },
+
+    // 获取/创建子目录 handle（支持 'originals', 'thumbs', 'refs'）
+    async _getSubDir(name) {
+        const images = await this.handle.getDirectoryHandle('images', { create: true });
+        return await images.getDirectoryHandle(name, { create: true });
+    },
+
+    // 写入图片文件 (base64 → file)，subDir: 'originals' | 'thumbs' | 'refs'
+    async saveImage(filename, b64Data, subDir = 'originals') {
+        const parts = b64Data.split(',');
+        const bstr = atob(parts[1]);
+        const u8 = new Uint8Array(bstr.length);
+        for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
+        const dir = await this._getSubDir(subDir);
+        const fh = await dir.getFileHandle(filename, { create: true });
+        const w = await fh.createWritable();
+        await w.write(u8); await w.close();
+    },
+
+    // 获取图片的 blob URL，subDir: 'originals' | 'thumbs' | 'refs'
+    async getImageURL(filename, subDir = 'originals') {
+        try {
+            const dir = await this._getSubDir(subDir);
+            const fh = await dir.getFileHandle(filename);
+            return URL.createObjectURL(await fh.getFile());
+        } catch { return ''; }
+    },
+
+    // 写入 JSON
+    async saveJSON(filename, data) {
+        const fh = await this.handle.getFileHandle(filename, { create: true });
+        const w = await fh.createWritable();
+        await w.write(JSON.stringify(data, null, 2)); await w.close();
+    },
+
+    // 读取 JSON
+    async loadJSON(filename, fallback = []) {
+        try {
+            const fh = await this.handle.getFileHandle(filename);
+            const file = await fh.getFile();
+            return JSON.parse(await file.text());
+        } catch { return fallback; }
+    },
+
+    // 保存 API 配置到 config.json
+    async saveConfig() {
+        const cfg = {
+            baseUrl: $('baseUrl')?.value || '',
+            apiKey: $('apiKey')?.value || '',
+            modelGemini: $('modelGemini')?.value || '',
+            modelOpenai: $('modelOpenai')?.value || '',
+            currentEngine: ls('nanscript_currentEngine') || 'gemini'
+        };
+        await this.saveJSON('config.json', cfg);
+    },
+
+    // 从 config.json 读取 API 配置并应用
+    async loadConfig() {
+        const cfg = await this.loadJSON('config.json', null);
+        if (!cfg) return;
+        if (cfg.baseUrl && $('baseUrl')) { $('baseUrl').value = cfg.baseUrl; ls('nanscript_baseUrl', cfg.baseUrl); }
+        if (cfg.apiKey && $('apiKey')) { $('apiKey').value = cfg.apiKey; ls('nanscript_apiKey', cfg.apiKey); }
+        if (cfg.modelGemini && $('modelGemini')) { $('modelGemini').value = cfg.modelGemini; ls('nanscript_modelGemini', cfg.modelGemini); }
+        if (cfg.modelOpenai && $('modelOpenai')) { $('modelOpenai').value = cfg.modelOpenai; ls('nanscript_modelOpenai', cfg.modelOpenai); }
+        if (cfg.currentEngine) ls('nanscript_currentEngine', cfg.currentEngine);
+        // 同步 UI
+        if (typeof syncModelInput === 'function') syncModelInput();
+        if (typeof updatePreview === 'function') updatePreview();
+    }
+};
+
+// ========== 引擎预设 (Provider Defaults) ==========
+// 在这里直接修改两个方案的默认模型名称
+const PROVIDER_DEFAULTS = {
+    gemini: {
+        label: 'Banana · Gemini',
+        model: 'gemini-2.0-flash-preview-image-generation',
+        apiType: 'gemini',
+        badgeClass: 'gemini',
+        badgeText: '✦ Banana · Gemini',
+    },
+    openai: {
+        label: 'GPT Image-2',
+        model: 'gpt-image-1',
+        apiType: 'openai',
+        badgeClass: 'openai',
+        badgeText: '⬡ GPT Image-2',
+    }
+};
+
 // ========== 状态 ==========
 let isGenerating = false, selectedFiles = [], promptLib = [], historyData = [], curFolder = 0;
 let apiProfiles = safeParse('nanscript_api_profiles', '[]'), pendingThumb = null;
 let currentGalleryData = [];
 let abortCtrl = null; // 用于终止正在进行的生成请求
+let currentEngine = ls('nanscript_currentEngine') || 'gemini'; // 当前激活引擎
 
 function createGalleryItemDOM(src, sec, ratio, quality) {
     const el = document.createElement('div'); 
@@ -72,44 +219,124 @@ window.alert = msg => showToast(msg, 'error');
 // ========== 辅助 ==========
 const fileToB64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(f); });
 const urlToFile = async (u, n, t) => new File([await (await fetch(u)).blob()], n, { type: t });
-const getModel = () => { const s = $('modelSelect'), i = $('modelInput'); return (!s?.classList.contains('hidden') && s?.value) ? s.value : i?.value || ''; };
+// getModel() 根据当前激活引擎读取对应的模型输入框
+const getModel = () => {
+    if (currentEngine === 'openai') {
+        return $('modelOpenai')?.value?.trim() || PROVIDER_DEFAULTS.openai.model;
+    }
+    return $('modelGemini')?.value?.trim() || PROVIDER_DEFAULTS.gemini.model;
+};
+// 同步隐藏桥接字段，确保 executeGeneration 读取正确
+const syncModelInput = () => { const mi = $('modelInput'); if (mi) mi.value = getModel(); };
 
 function updatePreview() {
     const r = $('ratioSelect'), q = $('qualitySelect'), b = $('batchSelect');
     if (!r || !q || !b) return;
+    syncModelInput();
     $('paramPreview').textContent = `${r.value || 'Auto'} | ${q.options[q.selectedIndex]?.text.split(' ')[0] || 'Standard'} | x${b.value} | ${getModel() || 'No Model'}`;
+    // 同步 hint 文字
+    const hint = $('engineModelHintText');
+    if (hint) hint.textContent = `当前模型: ${getModel()}`;
 }
 
-// ========== 模型获取 ==========
+// ========== 引擎切换 ==========
+function switchEngine(engineKey, silent = false) {
+    const cfg = PROVIDER_DEFAULTS[engineKey];
+    if (!cfg) return;
+    currentEngine = engineKey;
+    ls('nanscript_currentEngine', engineKey);
+
+    // 更新隐藏的 apiTypeSelect（由引擎决定，不暴露给用户）
+    const apiSel = $('apiTypeSelect');
+    if (apiSel) { apiSel.value = cfg.apiType; ls('nanscript_apiTypeSelect', cfg.apiType); }
+
+    // 若对应引擎的模型输入框为空，填入预设默认值
+    if (engineKey === 'gemini') {
+        const mg = $('modelGemini');
+        if (mg && !mg.value.trim()) { mg.value = cfg.model; ls('nanscript_modelGemini', cfg.model); }
+    } else {
+        const mo = $('modelOpenai');
+        if (mo && !mo.value.trim()) { mo.value = cfg.model; ls('nanscript_modelOpenai', cfg.model); }
+    }
+
+    // 同步隐藏桥接字段
+    syncModelInput();
+
+    // 更新 UI 状态
+    document.querySelectorAll('.engine-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.engine === engineKey);
+    });
+    const badge = $('engineBadge');
+    if (badge) { badge.textContent = cfg.badgeText; badge.className = cfg.badgeClass; }
+    const hint = $('engineModelHintText');
+    if (hint) hint.textContent = `当前模型: ${getModel()}`;
+
+    updatePreview();
+    if (!silent) showToast(`已切换至 ${cfg.label}`);
+}
+
+// ========== 模型获取 (同时拉取 Gemini + OpenAI 两个引擎列表) ==========
 async function fetchModels() {
     const base = $('baseUrl').value.trim(), key = $('apiKey').value.trim(), st = $('modelStatus'), btn = $('fetchModelsBtn');
-    const apiType = $('apiTypeSelect')?.value || 'gemini';
     if (!key || !base) { st.className = 'model-status fail'; st.textContent = !key ? '❌ 缺少 API Key' : '❌ 缺少 Base URL'; return; }
-    btn.classList.add('loading'); btn.disabled = true; st.className = 'model-status'; st.textContent = 'Fetching...';
-    try {
-        let res, list = [];
-        if (apiType === 'openai') {
-            res = await fetch(`${base.replace(/\/$/, '')}/v1/models`, { headers: { 'Authorization': `Bearer ${key}` } });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            list = (await res.json()).data || [];
-        } else {
-            res = await fetch(`${base.replace(/\/$/, '')}/v1beta/models?key=${key}`, { headers: { 'Content-Type': 'application/json' } });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            list = (await res.json()).models || [];
+    btn.classList.add('loading'); btn.disabled = true;
+    st.className = 'model-status'; st.textContent = '正在获取模型列表...';
+
+    // 辅助：填充某个 select，并把值写回对应的 input
+    const fillSelect = (sel, inp, lsKey, models, curVal) => {
+        sel.innerHTML = '';
+        models.forEach(name => {
+            const o = document.createElement('option');
+            o.value = o.textContent = name;
+            sel.appendChild(o);
+        });
+        // 优先恢复已填值，否则优先选 image 相关
+        if (curVal && Array.from(sel.options).some(o => o.value === curVal)) sel.value = curVal;
+        else {
+            const imgOpt = Array.from(sel.options).find(o => o.value.includes('image'));
+            if (imgOpt) sel.value = imgOpt.value;
         }
-        if (!list.length) throw new Error('No models');
-        const sel = $('modelSelect'); sel.innerHTML = '';
-        list.forEach(m => { const o = document.createElement('option'); o.value = (m.name || m.id).replace('models/', ''); o.textContent = m.displayName || m.id || o.value; sel.appendChild(o); });
-        const cur = $('modelInput').value;
-        if (cur && Array.from(sel.options).some(o => o.value === cur)) sel.value = cur;
-        else if (sel.options.length > 0) $('modelInput').value = sel.value; // Sync the first option
-        $('modelInput').classList.add('hidden'); sel.classList.remove('hidden');
-        updatePreview(); st.className = 'model-status ok'; st.textContent = `✅ ${list.length} models loaded`;
-    } catch (e) {
-        $('modelInput').classList.remove('hidden'); $('modelSelect').classList.add('hidden');
-        st.className = 'model-status fail'; st.textContent = '⚠️ ' + e.message;
-    } finally { btn.classList.remove('loading'); btn.disabled = false; }
+        if (inp) { inp.value = sel.value; ls(lsKey, sel.value); }
+        inp?.classList.add('hidden'); sel.classList.remove('hidden');
+        sel.onchange = () => { if (inp) { inp.value = sel.value; ls(lsKey, sel.value); } syncModelInput(); updatePreview(); };
+        syncModelInput(); updatePreview();
+    };
+
+    const results = await Promise.allSettled([
+        // Gemini 模型列表
+        fetch(`${base.replace(/\/$/, '')}/v1beta/models?key=${key}`, { headers: { 'Content-Type': 'application/json' } })
+            .then(r => { if (!r.ok) throw new Error(`Gemini HTTP ${r.status}`); return r.json(); })
+            .then(d => (d.models || []).map(m => (m.name || m.id).replace('models/', ''))),
+        // OpenAI 兼容模型列表
+        fetch(`${base.replace(/\/$/, '')}/v1/models`, { headers: { 'Authorization': `Bearer ${key}` } })
+            .then(r => { if (!r.ok) throw new Error(`OpenAI HTTP ${r.status}`); return r.json(); })
+            .then(d => (d.data || []).map(m => m.id || m.name))
+    ]);
+
+    const [geminiRes, openaiRes] = results;
+    const msgs = [];
+
+    if (geminiRes.status === 'fulfilled' && geminiRes.value.length) {
+        fillSelect($('modelGeminiSelect'), $('modelGemini'), 'nanscript_modelGemini', geminiRes.value, $('modelGemini')?.value?.trim());
+        msgs.push(`Banana: ${geminiRes.value.length} 个模型`);
+    } else {
+        msgs.push(`Banana: ❌ ${geminiRes.reason?.message || '获取失败'}`);
+        $('modelGemini')?.classList.remove('hidden'); $('modelGeminiSelect')?.classList.add('hidden');
+    }
+
+    if (openaiRes.status === 'fulfilled' && openaiRes.value.length) {
+        fillSelect($('modelOpenaiSelect'), $('modelOpenai'), 'nanscript_modelOpenai', openaiRes.value, $('modelOpenai')?.value?.trim());
+        msgs.push(`Image-2: ${openaiRes.value.length} 个模型`);
+    } else {
+        msgs.push(`Image-2: ❌ ${openaiRes.reason?.message || '获取失败'}`);
+        $('modelOpenai')?.classList.remove('hidden'); $('modelOpenaiSelect')?.classList.add('hidden');
+    }
+
+    st.className = 'model-status ok'; st.textContent = '✅ ' + msgs.join(' | ');
+    btn.classList.remove('loading'); btn.disabled = false;
 }
+
+
 
 // ========== 核心生成 ==========
 async function executeGeneration(custom = {}) {
@@ -138,19 +365,40 @@ async function executeGeneration(custom = {}) {
             <div class="absolute inset-0 bg-gradient-to-tr from-primary/5 to-transparent"></div>
             <div class="flex flex-col items-center justify-center gap-3 relative z-10">
                 <span class="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
-                <span class="text-[11px] font-bold text-primary tracking-widest uppercase">正在生成...</span>
+                <span class="text-[11px] font-bold text-primary tracking-widest uppercase placeholder-timer">正在生成... 0s</span>
             </div>
         `;
         gallery.prepend(el);
         placeholders.push(el);
     }
+
+    // 计时器：每秒更新 statusBox 和占位卡片
+    let _timerSec = 0;
+    const _timerInterval = setInterval(() => {
+        _timerSec++;
+        status.innerHTML = `神笔正在与绘画之神通讯…  <span class="font-mono font-bold text-primary">${_timerSec}s</span>`;
+        placeholders.forEach(p => {
+            const lbl = p.querySelector('.placeholder-timer');
+            if (lbl) lbl.textContent = `正在生成... ${_timerSec}s`;
+        });
+    }, 1000);
     
     try {
         let imgs = custom.imageDatas || [];
         if (!custom.imageDatas && selectedFiles.length) imgs = await Promise.all(selectedFiles.map(fileToB64));
         const prompt = custom.prompt ?? $('promptInput').value;
         if (!imgs.length && !prompt.trim()) throw new Error('请输入提示词或提供底图');
-        const model = custom.model || getModel(), ratio = custom.aspectRatio || $('ratioSelect').value;
+        
+        const ratioSelectVal = $('ratioSelect').value;
+        let ratio = custom.aspectRatio || ratioSelectVal;
+        if (ratioSelectVal === 'custom') {
+            const w = $('customWidth').value.trim() || '1024';
+            const h = $('customHeight').value.trim() || '1024';
+            ratio = `${w}x${h}`;
+        }
+        if (!ratio) ratio = '1024x1024';
+
+        const model = custom.model || getModel();
         const quality = custom.quality || $('qualitySelect').value;
         const outputFormat = $('outputFormat')?.value || 'png';
         const bgStyle = $('bgStyle')?.value || '';
@@ -182,22 +430,20 @@ async function executeGeneration(custom = {}) {
                     return new Blob([u8arr], { type: mime });
                 };
 
-                let openaiSize = '1024x1024';
-                if (ratio === '16:9') openaiSize = '1792x1024';
-                else if (ratio === '9:16') openaiSize = '1024x1792';
+                let openaiSize = ratio; // 例如 "1024x1024"
 
                 if (imgs.length) {
                     const fd = new FormData();
                     fd.append('model', model);
                     fd.append('prompt', finalPrompt);
-                    if (ratio && ratio !== '') fd.append('size', openaiSize);
+                    if (openaiSize && openaiSize !== '') fd.append('size', openaiSize);
                     if (outputFormat) fd.append('output_format', outputFormat);
                     if (bgStyle) fd.append('background', bgStyle);
                     imgs.forEach((img, i) => fd.append('image', base64ToBlob(img), `image${i}.png`));
                     fetchOptions.body = fd;
                 } else {
                     const reqBody = { model: model, prompt: finalPrompt };
-                    if (ratio && ratio !== '') reqBody.size = openaiSize;
+                    if (openaiSize && openaiSize !== '') reqBody.size = openaiSize;
                     if (outputFormat) reqBody.output_format = outputFormat;
                     if (bgStyle) reqBody.background = bgStyle;
                     fetchOptions.headers['Content-Type'] = 'application/json';
@@ -221,7 +467,23 @@ async function executeGeneration(custom = {}) {
                 parts.push({ text: finalPrompt });
                 const imageConfig = {};
                 if (sizeMap[quality]) imageConfig.imageSize = sizeMap[quality];
-                if (ratio && ratio !== '') imageConfig.aspectRatio = ratio;
+                
+                // 将具体的宽高尺寸转换回 Gemini 原生支持的宽高比
+                let geminiRatio = ratio;
+                if (ratio && ratio.includes('x')) {
+                    const [w, h] = ratio.split('x').map(Number);
+                    if (w && h) {
+                        const r = w / h;
+                        if (Math.abs(r - 16/9) < 0.1) geminiRatio = "16:9";
+                        else if (Math.abs(r - 9/16) < 0.1) geminiRatio = "9:16";
+                        else if (Math.abs(r - 4/3) < 0.15) geminiRatio = "4:3";
+                        else if (Math.abs(r - 3/4) < 0.15) geminiRatio = "3:4";
+                        else if (Math.abs(r - 3/2) < 0.1) geminiRatio = "4:3"; // 3:2 映射到最接近的 4:3
+                        else if (Math.abs(r - 2/3) < 0.1) geminiRatio = "3:4"; // 2:3 映射到最接近的 3:4
+                        else geminiRatio = "1:1";
+                    }
+                }
+                if (geminiRatio && geminiRatio !== '') imageConfig.aspectRatio = geminiRatio;
                 const payload = {
                     contents: [{ role: 'user', parts }],
                     generationConfig: {
@@ -254,7 +516,9 @@ async function executeGeneration(custom = {}) {
 
         const firstText = all.find(r => r.status === 'fulfilled' && r.value.text)?.value.text.trim() || '';
         const textSec = $('textResultSection');
-        if (firstText) { textSec.style.display = 'block'; $('textOutput').textContent = firstText; } else textSec.style.display = 'none';
+        // 始终隐藏文字描述区域，不自动弹出
+        textSec.style.display = 'none';
+        if (firstText && $('textOutput')) $('textOutput').textContent = firstText;
 
         placeholders.forEach(p => p.remove());
 
@@ -262,14 +526,22 @@ async function executeGeneration(custom = {}) {
         // prepend backwards so valid[0] is at the very top
         valid.reverse().forEach(src => {
             const sec = ((Date.now() - t0) / 1000).toFixed(1);
+            // 预生成 imageId 共享给 gallery 和 history，确保文件名一致
+            const imageId = Date.now().toString() + '_' + Math.random().toString(36).slice(2,6);
+            const imageFile = localFS.isActive() ? `${imageId}.png` : null;
             const el = createGalleryItemDOM(src, sec, ratio, quality);
             gallery.prepend(el);
-            currentGalleryData.unshift({ src, sec, ratio, quality, prompt: firstText });
-            saveHistory({ prompt, model, aspectRatio: ratio, quality, batchCount: count }, src, imgs);
+            currentGalleryData.unshift({ src, sec, ratio, quality, prompt: firstText, imageFile });
+            saveHistory({ prompt, model, aspectRatio: ratio, quality, batchCount: count }, src, imgs, imageId);
         });
         // 限制本地存储数量，防止过大
         currentGalleryData = currentGalleryData.slice(0, 50);
-        idb.set('nanscript_current_gallery', currentGalleryData);
+        if (localFS.isActive()) {
+            // 本地模式：存元数据（含 imageFile 引用），不存 Base64
+            localFS.saveJSON('gallery.json', currentGalleryData.map(i => ({ sec: i.sec, ratio: i.ratio, quality: i.quality, prompt: i.prompt, imageFile: i.imageFile }))).catch(() => {});
+        } else {
+            idb.set('nanscript_current_gallery', currentGalleryData);
+        }
         
         showToast(`成功生成 ${valid.length} 张图像`);
         results.style.display = 'block'; status.style.display = 'none';
@@ -282,11 +554,16 @@ async function executeGeneration(custom = {}) {
             results.style.display = 'none';
             empty.style.display = 'block';
         }
-    } finally { isGenerating = false; abortCtrl = null; btn.innerHTML = '<span class="material-symbols-outlined">auto_awesome</span> 开始创造'; status.innerHTML = ''; }
+    } finally {
+        clearInterval(_timerInterval);
+        isGenerating = false; abortCtrl = null;
+        btn.innerHTML = '<span class="material-symbols-outlined">auto_awesome</span> 开始创造';
+        status.innerHTML = '';
+    }
 }
 
 // ========== 历史记录 ==========
-function saveHistory(params, b64Img, refImages = []) {
+function saveHistory(params, b64Img, refImages = [], presetId = null) {
     const originalImageSrc = b64Img;
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -305,33 +582,57 @@ function saveHistory(params, b64Img, refImages = []) {
     img.onerror = () => _doSave(originalImageSrc);
     img.src = originalImageSrc;
 
-    function _doSave(thumb) {
-        historyData.unshift({
-            id: Date.now().toString(),
-            date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })(),
-            prompt: params.prompt || '纯图生成',
-            model: params.model,
-            aspectRatio: params.aspectRatio,
-            quality: params.quality,
-            batchCount: params.batchCount,
-            apiType: $('apiTypeSelect')?.value || 'gemini',
-            thumb: thumb,
-            fullImage: originalImageSrc,
-            refImages: refImages
-        });
-        if (historyData.length > 100) historyData = historyData.slice(0, 100);
-        idb.set('nanscript_history_db', historyData); renderHistory();
+    async function _doSave(thumb) {
+        const id = presetId || Date.now().toString();
+        const date = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })();
+
+        if (localFS.isActive()) {
+            // 本地模式：原图存 originals/，缩略图存 thumbs/
+            const imageFile = `${id}.png`;
+            const thumbFile = `${id}_thumb.jpg`;
+            try { await localFS.saveImage(imageFile, originalImageSrc, 'originals'); } catch(e) { console.warn('写入原图失败', e); }
+            try { await localFS.saveImage(thumbFile, thumb, 'thumbs'); } catch(e) { console.warn('写入缩略图失败', e); }
+
+            // 将实际垂图存入 refs/ 子目录
+            const refFiles = [];
+            if (Array.isArray(refImages) && refImages.length) {
+                for (let i = 0; i < refImages.length; i++) {
+                    const refFname = `${id}_ref${i}.png`;
+                    try {
+                        await localFS.saveImage(refFname, refImages[i], 'refs');
+                        refFiles.push(refFname);
+                    } catch(e) { console.warn('写入垂图失败', e); }
+                }
+            }
+            // 内存中保留 _thumbSrc（base64），供当升的 renderHistory 显示使用，刷新后改由文件加载
+            historyData.unshift({ id, date, prompt: params.prompt || '纯图生成', model: params.model, aspectRatio: params.aspectRatio, quality: params.quality, batchCount: params.batchCount, apiType: $('apiTypeSelect')?.value || 'gemini', imageFile, thumbFile, _thumbSrc: thumb, refFiles, refImages: [] });
+            if (historyData.length > 100) historyData = historyData.slice(0, 100);
+            // 写 JSON 时不带 _thumbSrc（临时内存字段，不应持久化）
+            const toSave = historyData.map(({ _thumbSrc, ...rest }) => rest);
+            await localFS.saveJSON('history.json', toSave);
+        } else {
+            historyData.unshift({ id, date, prompt: params.prompt || '纯图生成', model: params.model, aspectRatio: params.aspectRatio, quality: params.quality, batchCount: params.batchCount, apiType: $('apiTypeSelect')?.value || 'gemini', thumb, fullImage: originalImageSrc, refImages });
+            if (historyData.length > 100) historyData = historyData.slice(0, 100);
+            idb.set('nanscript_history_db', historyData);
+        }
+        renderHistory();
     }
 }
 
 let currentHistoryIdx = -1;
 let currentDetailMode = 'history';
 
-function showHistoryDetail(item, idx, mode = 'history') {
+async function showHistoryDetail(item, idx, mode = 'history') {
     currentHistoryIdx = idx;
     currentDetailMode = mode;
-    
-    const imgSrc = item.fullImage || item.thumb || '';
+
+    // 本地模式：始终从 originals/ 加载原图（用于放大）
+    let imgSrc = '';
+    if (localFS.isActive() && item.imageFile) {
+        imgSrc = await localFS.getImageURL(item.imageFile, 'originals').catch(() => '');
+    }
+    // 浏览器模式：直接用 fullImage
+    if (!imgSrc) imgSrc = item.fullImage || item._thumbSrc || item.thumb || '';
     if (imgSrc && !imgSrc.endsWith('index.html')) {
         $('hdImage').src = imgSrc;
         $('hdImage').style.display = 'block';
@@ -352,14 +653,28 @@ function showHistoryDetail(item, idx, mode = 'history') {
     $('hdImage').onclick = () => { if($('hdImage').src) { $('lightboxImg').src = $('hdImage').src; $('lightbox').style.display = 'flex'; } };
 
     const refGroup = $('hdRefImagesGroup'), refList = $('hdRefImages');
-    if (item.refImages && item.refImages.length) {
+    // 支持本地模式：优先用 refFiles 字段，降级用 refImages
+    const hasRefFiles = localFS.isActive() && Array.isArray(item.refFiles) && item.refFiles.length;
+    const hasRefImages = Array.isArray(item.refImages) && item.refImages.length;
+
+    if (hasRefFiles || hasRefImages) {
         refGroup.style.display = 'block';
         refList.innerHTML = '';
-        item.refImages.forEach(src => {
-            const div = document.createElement('div'); div.className = 'preview-item';
-            div.innerHTML = `<img src="${src}">`;
-            refList.appendChild(div);
-        });
+        if (hasRefFiles) {
+            for (const fname of item.refFiles) {
+                const src = await localFS.getImageURL(fname, 'refs').catch(() => '');
+                if (!src) continue;
+                const div = document.createElement('div'); div.className = 'preview-item';
+                div.innerHTML = `<img src="${src}">`;
+                refList.appendChild(div);
+            }
+        } else {
+            item.refImages.forEach(src => {
+                const div = document.createElement('div'); div.className = 'preview-item';
+                div.innerHTML = `<img src="${src}">`;
+                refList.appendChild(div);
+            });
+        }
     } else {
         refGroup.style.display = 'none';
     }
@@ -374,8 +689,9 @@ function renderHistory() {
     historyData.forEach((item, idx) => {
         const el = document.createElement('div'); el.className = 'flex gap-3 group cursor-pointer hover:bg-surface-container-high/40 p-2 rounded-xl transition-all duration-300 relative border border-transparent hover:border-outline-variant/30';
         const badges = [item.aspectRatio, item.quality, item.batchCount > 1 ? `x${item.batchCount}` : ''].filter(Boolean).map(b => `<span class="bg-surface-container text-on-surface-variant px-1.5 py-0.5 rounded text-[9px] border border-outline-variant uppercase tracking-widest">${escHtml(b)}</span>`).join('');
+        const thumbSrc = item._thumbSrc || item.thumb || '';
         el.innerHTML = `<div class="w-16 h-16 rounded-lg bg-surface-container overflow-hidden flex-shrink-0 border border-outline-variant/50 relative">
-            <img src="${item.thumb}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+            <img src="${thumbSrc}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
         </div>
         <div class="flex flex-col justify-center flex-1 min-w-0 pr-6">
             <span class="text-[11px] text-primary uppercase tracking-widest font-bold mb-1.5 line-clamp-1">${escHtml(item.prompt)}</span>
@@ -386,13 +702,22 @@ function renderHistory() {
         
         el.onclick = () => showHistoryDetail(item, idx);
         
-        el.querySelector('.hd').onclick = e => { e.stopPropagation(); historyData.splice(idx, 1); idb.set('nanscript_history_db', historyData); renderHistory(); };
+        el.querySelector('.hd').onclick = e => {
+            e.stopPropagation();
+            historyData.splice(idx, 1);
+            if (localFS.isActive()) localFS.saveJSON('history.json', historyData).catch(() => {});
+            else idb.set('nanscript_history_db', historyData);
+            renderHistory();
+        };
         list.appendChild(el);
     });
 }
 
 // ========== 咒语书 ==========
-const saveLib = () => idb.set('nanscript_prompt_lib', promptLib);
+const saveLib = async () => {
+    if (localFS.isActive()) await localFS.saveJSON('prompts.json', promptLib);
+    else idb.set('nanscript_prompt_lib', promptLib);
+};
 
 function renderFolders() {
     const list = $('folderList'); if (!list) return; list.innerHTML = '';
@@ -415,14 +740,19 @@ function renderFolders() {
     renderPrompts();
 }
 
-function renderPrompts() {
+async function renderPrompts() {
     const grid = $('promptGrid'), title = $('currentFolderName');
     if (!grid || !title) return;
     if (!promptLib.length) { title.textContent = '暂无分类'; grid.innerHTML = '<div style="color:var(--text-muted)">请先创建分类</div>'; return; }
     const folder = promptLib[curFolder]; title.textContent = `📂 ${folder.folderName}`; grid.innerHTML = '';
-    folder.prompts.forEach((p, i) => {
+    for (let i = 0; i < folder.prompts.length; i++) {
+        const p = folder.prompts[i];
         const card = document.createElement('div'); card.className = 'bg-surface-container border border-outline-variant rounded-xl overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-lg hover:border-primary transition-all group';
-        const imgSrc = p.fullImage || p.thumb || '';
+        // 冒泡图源：支持本地模式的 thumbFile
+        let imgSrc = p.thumb || p.fullImage || '';
+        if (!imgSrc && p.thumbFile && localFS.isActive()) {
+            imgSrc = await localFS.getImageURL(p.thumbFile, 'thumbs').catch(() => '');
+        }
         card.innerHTML = `<div class="h-32 bg-surface-container-lowest overflow-hidden"><img src="${imgSrc}" class="w-full h-full object-cover" style="display:${imgSrc ? 'block' : 'none'}"></div>
                         <div class="p-4 relative">
                             <div class="font-bold text-sm text-on-surface mb-2 truncate pr-6">${escHtml(p.name)}</div>
@@ -442,7 +772,7 @@ function renderPrompts() {
         };
         card.querySelector('.dp').onclick = e => { e.stopPropagation(); folder.prompts.splice(i, 1); saveLib(); renderPrompts(); };
         grid.appendChild(card);
-    });
+    }
 }
 
 // ========== 预览列表 ==========
@@ -490,7 +820,20 @@ function renderPreviews() {
         el.append(img, btn); 
         list.appendChild(el);
     });
-    Promise.all(selectedFiles.map(fileToB64)).then(b64s => idb.set('nanscript_current_refs', b64s)).catch(() => {});
+    Promise.all(selectedFiles.map(fileToB64)).then(async b64s => {
+        if (localFS.isActive()) {
+            // 本地模式：将当前垂图存入 refs/ 子目录
+            const refFiles = [];
+            for (let i = 0; i < b64s.length; i++) {
+                const fname = `current_ref_${i}.png`;
+                await localFS.saveImage(fname, b64s[i], 'refs').catch(e => console.warn('写垂图失败', e));
+                refFiles.push(fname);
+            }
+            await localFS.saveJSON('current_refs.json', refFiles).catch(() => {});
+        } else {
+            idb.set('nanscript_current_refs', b64s);
+        }
+    }).catch(() => {});
 }
 
 // ========== 初始化 ==========
@@ -535,22 +878,21 @@ document.addEventListener('DOMContentLoaded', () => {
     $('hdAddLibBtn').onclick = () => {
         const text = $('hdPrompt').value;
         if (!text) return showToast('无提示词可存', 'error');
-        const name = prompt('为这组咒语起个名字:', '历史收藏');
+        const name = prompt('为这组咋语起个名字:', '历史收藏');
         if (!name) return;
         if (!promptLib.length) promptLib.push({ folderName: 'Default', prompts: [] });
-        
-        const histItem = historyData[currentHistoryIdx];
-        promptLib[curFolder].prompts.unshift({ 
-            name, 
-            content: text, 
-            thumb: histItem.thumb,
-            fullImage: histItem.fullImage,
-            model: histItem.model,
-            aspectRatio: histItem.aspectRatio,
-            quality: histItem.quality,
-            batchCount: histItem.batchCount,
-            apiType: histItem.apiType,
-            refImages: histItem.refImages
+        const histItem = currentDetailMode === 'history' ? historyData[currentHistoryIdx] : null;
+        promptLib[curFolder].prompts.unshift({
+            name,
+            content: text,
+            // 尽量保存各种图片引用：本地模式用 file 引用，浏览器模式用 base64
+            thumb: histItem?.thumb || histItem?._thumbSrc || '',
+            fullImage: histItem?.fullImage || '',
+            imageFile: histItem?.imageFile || null,
+            thumbFile: histItem?.thumbFile || null,
+            model: histItem?.model, aspectRatio: histItem?.aspectRatio,
+            quality: histItem?.quality, batchCount: histItem?.batchCount,
+            apiType: histItem?.apiType, refImages: histItem?.refImages
         });
         saveLib(); renderFolders(); showToast('已加入当前分类');
     };
@@ -643,23 +985,108 @@ document.addEventListener('DOMContentLoaded', () => {
         else setTheme('auto');
     };
 
-    // 表单字段持久化
-    ['baseUrl', 'apiKey', 'modelInput', 'ratioSelect', 'qualitySelect', 'promptInput', 'batchSelect', 'apiTypeSelect'].forEach(id => {
+    // ==========================================
+    // 自定义画幅尺寸下拉组件逻辑
+    // ==========================================
+    const initRatioDropdown = () => {
+        const presets = [
+            { group: '标清 (SD)', items: [
+                { val: '512x512', label: '512 x 512 (1:1)' },
+                { val: '768x512', label: '768 x 512 (3:2)' },
+                { val: '512x768', label: '512 x 768 (2:3)' }
+            ]},
+            { group: '高清 (HD)', items: [
+                { val: '1024x1024', label: '1024 x 1024 (1:1 高清)' },
+                { val: '1024x576', label: '1024 x 576 (16:9)' },
+                { val: '576x1024', label: '576 x 1024 (9:16)' },
+                { val: '1024x768', label: '1024 x 768 (4:3)' },
+                { val: '768x1024', label: '768 x 1024 (3:4)' }
+            ]},
+            { group: '超清 (2K)', items: [
+                { val: '2048x2048', label: '2048 x 2048 (1:1)' },
+                { val: '1920x1080', label: '1920 x 1080 (16:9)' },
+                { val: '1080x1920', label: '1080 x 1920 (9:16)' }
+            ]},
+            { group: '极致 (4K)', items: [
+                { val: '2880x2880', label: '2880 x 2880 (1:1)' },
+                { val: '3840x2160', label: '3840 x 2160 (16:9)' },
+                { val: '2160x3840', label: '2160 x 3840 (9:16)' }
+            ]},
+            { group: '其他', items: [
+                { val: 'custom', label: '自定义尺寸...' }
+            ]}
+        ];
+
+        const btn = $('ratioSelectBtn'), text = $('ratioSelectText'), hiddenInput = $('ratioSelect'), drop = $('ratioDropdown'), customBox = $('customRatioContainer');
+        if (!btn) return;
+
+        // 渲染列表
+        drop.innerHTML = presets.map(g => `
+            <div class="px-3 py-1.5 text-[10px] font-bold text-primary bg-primary/5 uppercase tracking-widest sticky top-0 backdrop-blur-md z-10">${g.group}</div>
+            <div class="py-1">
+                ${g.items.map(i => `<div class="ratio-opt px-3 py-2 text-xs text-on-surface hover:bg-surface-container cursor-pointer transition-colors font-mono flex justify-between items-center" data-val="${i.val}"><span>${i.label}</span></div>`).join('')}
+            </div>
+        `).join('');
+
+        // 根据值更新 UI
+        const updateUI = (val) => {
+            hiddenInput.value = val;
+            let foundLabel = val === 'custom' ? '自定义尺寸...' : val;
+            for(const g of presets) {
+                const f = g.items.find(i => i.val === val);
+                if (f) { foundLabel = f.label; break; }
+            }
+            text.textContent = foundLabel;
+            
+            drop.querySelectorAll('.ratio-opt').forEach(el => {
+                if (el.dataset.val === val) el.classList.add('bg-primary/10', 'text-primary', 'font-bold');
+                else el.classList.remove('bg-primary/10', 'text-primary', 'font-bold');
+            });
+
+            if (val === 'custom') {
+                customBox.classList.remove('hidden');
+                customBox.classList.add('flex');
+            } else {
+                customBox.classList.add('hidden');
+                customBox.classList.remove('flex');
+            }
+        };
+
+        // 绑定事件
+        btn.onclick = (e) => { e.stopPropagation(); drop.classList.toggle('hidden'); };
+        drop.querySelectorAll('.ratio-opt').forEach(opt => {
+            opt.onclick = () => {
+                updateUI(opt.dataset.val);
+                drop.classList.add('hidden');
+                hiddenInput.dispatchEvent(new Event('change'));
+            };
+        });
+        document.addEventListener('click', (e) => {
+            if (!btn.contains(e.target) && !drop.contains(e.target)) drop.classList.add('hidden');
+        });
+
+        window._updateRatioUI = updateUI;
+    };
+    initRatioDropdown();
+
+    // 表单字段持久化（modelGemini/modelOpenai 独立保存，apiTypeSelect 由引擎切换器驱动不持久化）
+    ['baseUrl', 'apiKey', 'modelGemini', 'modelOpenai', 'ratioSelect', 'customWidth', 'customHeight', 'qualitySelect', 'promptInput', 'batchSelect'].forEach(id => {
         const el = $(id); if (!el) return;
         const saved = ls('nanscript_' + id); if (saved) { el.value = saved; if (id === 'batchSelect') $('batchValue').textContent = saved; }
-        const sync = () => { ls('nanscript_' + id, el.value); if (id === 'batchSelect') $('batchValue').textContent = el.value; updatePreview(); };
+        const sync = () => {
+            ls('nanscript_' + id, el.value);
+            if (id === 'batchSelect') $('batchValue').textContent = el.value;
+            // 模型变更时同步桥接字段
+            if (id === 'modelGemini' || id === 'modelOpenai') syncModelInput();
+            if (id === 'ratioSelect' && window._updateRatioUI) {
+                window._updateRatioUI(el.value);
+            }
+            updatePreview();
+        };
         el.oninput = el.onchange = sync;
     });
-
-    // 绑定 modelSelect 同步
-    const mSel = $('modelSelect');
-    if (mSel) {
-        mSel.addEventListener('change', (e) => {
-            $('modelInput').value = e.target.value;
-            ls('nanscript_modelInput', e.target.value);
-            updatePreview();
-        });
-    }
+    // 初始化时同步UI状态
+    if (window._updateRatioUI) window._updateRatioUI($('ratioSelect').value || '1024x1024');
 
     // 垫图
     const imgInput = $('imageInput');
@@ -670,11 +1097,11 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedFiles = selectedFiles.concat(nf); renderPreviews(); e.target.value = '';
         };
         // 拖拽
-        const panel = imgInput.closest('.panel');
+        const panel = imgInput.parentElement;
         if (panel) {
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => panel.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }));
-            ['dragenter', 'dragover'].forEach(e => panel.addEventListener(e, () => panel.classList.add('drag-active')));
-            ['dragleave', 'drop'].forEach(e => panel.addEventListener(e, () => panel.classList.remove('drag-active')));
+            ['dragenter', 'dragover'].forEach(e => panel.addEventListener(e, () => panel.classList.add('bg-surface-container-highest', 'border-primary')));
+            ['dragleave', 'drop'].forEach(e => panel.addEventListener(e, () => panel.classList.remove('bg-surface-container-highest', 'border-primary')));
             panel.ondrop = e => {
                 const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
                 if (files.length) { const dt = new DataTransfer();[...(imgInput.files || []), ...files].forEach(f => dt.items.add(f)); imgInput.files = dt.files; imgInput.dispatchEvent(new Event('change')); }
@@ -693,20 +1120,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const p = apiProfiles.find(x => x.name === e.target.value); if (!p) return;
             $('baseUrl').value = p.baseUrl || ''; ls('nanscript_baseUrl', p.baseUrl || '');
             $('apiKey').value = p.apiKey || ''; ls('nanscript_apiKey', p.apiKey || '');
-            $('modelInput').value = p.modelInput || ''; ls('nanscript_modelInput', p.modelInput || '');
-            const s = $('modelSelect');
-            if (s && !s.classList.contains('hidden')) {
-                if (Array.from(s.options).some(o => o.value === p.modelInput)) s.value = p.modelInput;
-                else { s.classList.add('hidden'); $('modelInput').classList.remove('hidden'); }
-            }
-            if (p.apiTypeSelect) { $('apiTypeSelect').value = p.apiTypeSelect; ls('nanscript_apiTypeSelect', p.apiTypeSelect); }
+            // 恢复双引擎模型
+            if (p.modelGemini && $('modelGemini')) { $('modelGemini').value = p.modelGemini; ls('nanscript_modelGemini', p.modelGemini); }
+            if (p.modelOpenai && $('modelOpenai')) { $('modelOpenai').value = p.modelOpenai; ls('nanscript_modelOpenai', p.modelOpenai); }
             $('apiProfileName').value = p.name;
-            updatePreview(); showToast(`已加载: ${p.name}（可修改后保存覆盖）`);
+            syncModelInput(); updatePreview(); showToast(`已加载: ${p.name}（可修改后保存覆盖）`);
         };
     }
     $('saveProfileBtn').onclick = () => {
         const name = $('apiProfileName').value.trim(); if (!name) return alert('请输入配置名称');
-        const cfg = { name, baseUrl: $('baseUrl').value, apiKey: $('apiKey').value, modelInput: getModel(), apiTypeSelect: $('apiTypeSelect')?.value || 'gemini' };
+        const cfg = {
+            name,
+            baseUrl: $('baseUrl').value,
+            apiKey: $('apiKey').value,
+            modelGemini: $('modelGemini')?.value || PROVIDER_DEFAULTS.gemini.model,
+            modelOpenai: $('modelOpenai')?.value || PROVIDER_DEFAULTS.openai.model,
+        };
         const i = apiProfiles.findIndex(p => p.name === name);
         i > -1 ? apiProfiles[i] = cfg : apiProfiles.push(cfg);
         ls('nanscript_api_profiles', JSON.stringify(apiProfiles));
@@ -721,26 +1150,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ✅ 应用并关闭按钮
     $('applyApiConfigBtn').onclick = () => {
-        ['baseUrl', 'apiKey', 'modelInput', 'apiTypeSelect'].forEach(id => { 
-            if ($(id)) {
-                let val = $(id).value;
-                if (id === 'modelInput') val = getModel();
-                ls('nanscript_' + id, val); 
-                if (id === 'modelInput') $('modelInput').value = val;
-            }
-        });
-        updatePreview();
+        // 保存公共字段
+        ['baseUrl', 'apiKey'].forEach(id => { if ($(id)) ls('nanscript_' + id, $(id).value); });
+        // 保存双引擎模型字段
+        const mg = $('modelGemini')?.value || PROVIDER_DEFAULTS.gemini.model;
+        const mo = $('modelOpenai')?.value || PROVIDER_DEFAULTS.openai.model;
+        ls('nanscript_modelGemini', mg); ls('nanscript_modelOpenai', mo);
+        syncModelInput(); updatePreview();
         $('apiConfigModal').style.display = 'none';
-        showToast(`已应用配置 · 模型: ${getModel() || '未设置'}`);
+        // 本地模式：同步写入 config.json
+        if (localFS.isActive()) {
+            localFS.saveConfig()
+                .then(() => console.log('[localFS] config.json 已写入'))
+                .catch(e => { console.error('[localFS] saveConfig 失败:', e); showToast('配置写入本地失败', 'error'); });
+        }
+        showToast(`已应用 · Banana: ${mg} | Image-2: ${mo}`);
     };
+
+    // ========== 引擎切换器初始化 ==========
+    document.querySelectorAll('.engine-btn').forEach(btn => {
+        btn.onclick = () => switchEngine(btn.dataset.engine);
+    });
+    // 恢复上次引擎选择（静默初始化）
+    (function restoreEngine() {
+        const eng = currentEngine;
+        const cfg = PROVIDER_DEFAULTS[eng];
+        if (!cfg) return;
+        // 若 Gemini 模型框为空则填预设
+        const mg = $('modelGemini');
+        if (mg && !mg.value.trim()) { mg.value = PROVIDER_DEFAULTS.gemini.model; ls('nanscript_modelGemini', PROVIDER_DEFAULTS.gemini.model); }
+        // 若 OpenAI 模型框为空则填预设
+        const mo = $('modelOpenai');
+        if (mo && !mo.value.trim()) { mo.value = PROVIDER_DEFAULTS.openai.model; ls('nanscript_modelOpenai', PROVIDER_DEFAULTS.openai.model); }
+        // 同步隐藏桥接字段 & apiTypeSelect
+        const apiSel = $('apiTypeSelect');
+        if (apiSel) apiSel.value = cfg.apiType;
+        syncModelInput();
+        // 更新按钮激活态
+        document.querySelectorAll('.engine-btn').forEach(b => b.classList.toggle('active', b.dataset.engine === eng));
+        // 更新徽章
+        const badge = $('engineBadge');
+        if (badge) { badge.textContent = cfg.badgeText; badge.className = cfg.badgeClass; }
+        const hint = $('engineModelHintText');
+        if (hint) hint.textContent = `当前模型: ${getModel()}`;
+    })();
 
     // 按钮绑定
     $('fetchModelsBtn').onclick = fetchModels;
     $('runBtn').onclick = () => executeGeneration();
-    $('toggleCompareBtn').onclick = e => {
-        const g = $('imageGallery'), on = g.classList.toggle('compare-grid');
-        e.target.textContent = on ? '[ 退出对比 ]' : '[ 切换对比模式 ]';
-    };
 
     // 咒语书 - 添加文件夹
     $('addFolderBtn').onclick = () => {
@@ -816,9 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
             a.download = `GBanavelAi_画作合集_${Date.now()}.zip`;
             document.body.appendChild(a);
             a.click();
-            setTimeout(() => {
-                document.body.removeChild(a);
-            }, 100);
+            setTimeout(() => { document.body.removeChild(a); }, 100);
             showToast(`🎉 成功打包 ${count} 张图片！`);
         } catch(e) {
             console.error(e);
@@ -862,53 +1317,122 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch { showToast('图片加载失败', 'error'); }
         finally { btn.disabled = false; btn.textContent = '确认重绘'; }
     };
+    const pickBtn = $('pickFolderBtn'), clearFolderBtnEl = $('clearFolderBtn');
+    if (!localFS._supported) {
+        const notSup = $('localFsNotSupported'); if (notSup) notSup.classList.remove('hidden');
+        if (pickBtn) pickBtn.disabled = true;
+    } else {
+        if (pickBtn) pickBtn.onclick = () => localFS.pick();
+        if (clearFolderBtnEl) clearFolderBtnEl.onclick = async () => {
+            if (!confirm('解除绑定后，将切换回浏览器缓存模式。确定解除吗？')) return;
+            await localFS.clear();
+        };
+    }
 
-    // 从 IndexedDB 恢复数据
-    idb.get('nanscript_prompt_lib').then(d => { if (Array.isArray(d) && d.length) promptLib = d; }).catch(() => { });
-    idb.get('nanscript_history_db').then(d => {
-        if (Array.isArray(d) && d.length) historyData = d;
-        else try { const o = JSON.parse(ls('nanscript_history_db') || '[]'); if (o.length) { historyData = o; idb.set('nanscript_history_db', o); } } catch { }
-        renderHistory();
-    }).catch(() => renderHistory());
-    idb.get('nanscript_current_refs').then(d => {
-        if (Array.isArray(d) && d.length) {
-            d.forEach((src, idx) => {
-                if (src.startsWith('data:')) {
-                    const blob = base64ToBlob2(src);
-                    if(blob) selectedFiles.push(new File([blob], `ref${idx}.png`, { type: blob.type }));
+    // 应用渲染参数（历史记录列表支持本地模式）
+    const renderHistoryItem = async (item) => {
+        let thumbSrc = item.thumb || '';
+        if (!thumbSrc && item.thumbFile && localFS.isActive()) {
+            thumbSrc = await localFS.getImageURL(item.thumbFile, 'thumbs').catch(() => '');
+        }
+        return { ...item, _thumbSrc: thumbSrc || item.thumb || '' };
+    };
+
+    // 启动加载：优先尝试本地文件夹，失败则降级到 IDB
+    const initData = async () => {
+        const hasLocal = await localFS.restore();
+
+        if (hasLocal) {
+            // 本地模式：从 JSON 文件加载
+            promptLib = await localFS.loadJSON('prompts.json', []);
+            historyData = await localFS.loadJSON('history.json', []);
+
+            // 渲染历史记录（异步加载缩略图地址）
+            const list = $('historyList'); if (list) list.innerHTML = '<div class="text-center text-outline text-xs mt-8">正在从本地加载...</div>';
+            const enriched = await Promise.all(historyData.map(renderHistoryItem));
+            historyData = enriched;
+            renderHistory();
+
+            // 从 gallery.json + images/ 恢复画廊
+            const galleryMeta = await localFS.loadJSON('gallery.json', []);
+            if (galleryMeta.length) {
+                const gallery = $('imageGallery');
+                gallery.innerHTML = '';
+                for (const meta of galleryMeta) {
+                    // 直接使用 gallery.json 中存储的 imageFile 引用
+                    if (!meta.imageFile) continue;
+                    const src = await localFS.getImageURL(meta.imageFile, 'originals').catch(() => '');
+                    if (!src) continue;
+                    currentGalleryData.push({ src, sec: meta.sec, ratio: meta.ratio, quality: meta.quality, prompt: meta.prompt, imageFile: meta.imageFile });
+                    const el = createGalleryItemDOM(src, meta.sec, meta.ratio, meta.quality);
+                    gallery.appendChild(el);
                 }
-            });
-            renderPreviews();
-        }
-    }).catch(() => {});
-
-    // 恢复工坊画廊内容
-    idb.get('nanscript_current_gallery').then(d => {
-        if (Array.isArray(d) && d.length) {
-            currentGalleryData = d;
-            const gallery = $('imageGallery');
-            gallery.innerHTML = '';
-            currentGalleryData.forEach(item => {
-                const el = createGalleryItemDOM(item.src, item.sec, item.ratio, item.quality);
-                gallery.appendChild(el);
-            });
-            $('emptyState').style.display = 'none';
-            $('resultArea').style.display = 'block';
-            if (d[0] && d[0].prompt) {
-                $('textResultSection').style.display = 'block';
-                $('textOutput').textContent = d[0].prompt;
-            } else {
-                $('textResultSection').style.display = 'none';
+                if (currentGalleryData.length) {
+                    $('emptyState').style.display = 'none';
+                    $('resultArea').style.display = 'block';
+                    $('textResultSection').style.display = 'none';
+                }
             }
+            // 恢复当前垂图列表（current_refs.json）
+            const refFiles = await localFS.loadJSON('current_refs.json', []);
+            if (refFiles.length) {
+                for (const fname of refFiles) {
+                    try {
+                        const url = await localFS.getImageURL(fname, 'refs');
+                        if (!url) continue;
+                        const resp = await fetch(url);
+                        const blob = await resp.blob();
+                        selectedFiles.push(new File([blob], fname, { type: blob.type }));
+                    } catch(e) { console.warn('恢复垂图失败:', fname, e); }
+                }
+                if (selectedFiles.length) renderPreviews();
+            }
+            // 加载本地配置（API Key / URL / 模型）
+            await localFS.loadConfig();
+        } else {
+            // 浏览器模式：从 IDB 加载
+            idb.get('nanscript_prompt_lib').then(d => { if (Array.isArray(d) && d.length) promptLib = d; }).catch(() => {});
+            idb.get('nanscript_history_db').then(d => {
+                if (Array.isArray(d) && d.length) historyData = d;
+                else try { const o = JSON.parse(ls('nanscript_history_db') || '[]'); if (o.length) { historyData = o; idb.set('nanscript_history_db', o); } } catch {}
+                renderHistory();
+            }).catch(() => renderHistory());
+            idb.get('nanscript_current_refs').then(d => {
+                if (Array.isArray(d) && d.length) {
+                    d.forEach((src, idx) => {
+                        if (src.startsWith('data:')) {
+                            const blob = base64ToBlob2(src);
+                            if (blob) selectedFiles.push(new File([blob], `ref${idx}.png`, { type: blob.type }));
+                        }
+                    });
+                    renderPreviews();
+                }
+            }).catch(() => {});
+            idb.get('nanscript_current_gallery').then(d => {
+                if (Array.isArray(d) && d.length) {
+                    currentGalleryData = d;
+                    const gallery = $('imageGallery');
+                    gallery.innerHTML = '';
+                    currentGalleryData.forEach(item => {
+                        const el = createGalleryItemDOM(item.src, item.sec, item.ratio, item.quality);
+                        gallery.appendChild(el);
+                    });
+                    $('emptyState').style.display = 'none';
+                    $('resultArea').style.display = 'block';
+                    $('textResultSection').style.display = 'none';
+                }
+            }).catch(() => {});
         }
-    }).catch(() => {});
+    };
+    initData();
 
-    // 清空画廊
+    // 清空画庬
     if ($('clearGalleryBtn')) {
         $('clearGalleryBtn').onclick = () => {
             if (!confirm('确定要清空当前的创意工坊吗？（历史记录不会受影响）')) return;
             currentGalleryData = [];
-            idb.set('nanscript_current_gallery', []);
+            if (localFS.isActive()) localFS.saveJSON('gallery.json', []).catch(() => {});
+            else idb.set('nanscript_current_gallery', []);
             $('imageGallery').innerHTML = '';
             $('resultArea').style.display = 'none';
             $('emptyState').style.display = 'block';
