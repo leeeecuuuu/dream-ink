@@ -6,7 +6,7 @@ export const RedrawModal = `
                 <h3 class="font-bold text-on-surface m-0 flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[20px]">brush</span> 局部重绘
                 </h3>
-                <button onclick="document.getElementById('redrawModal').style.display='none'" class="material-symbols-outlined text-outline hover:text-on-surface transition-colors">close</button>
+                <button id="closeRedrawBtn" class="material-symbols-outlined text-outline hover:text-on-surface transition-colors">close</button>
             </div>
             <div class="bg-surface-container-lowest border border-outline-variant rounded-xl h-40 flex items-center justify-center overflow-hidden mb-5">
                 <img id="redrawSourceThumb" src="" class="max-h-full max-w-full object-contain">

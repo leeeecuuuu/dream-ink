@@ -53,6 +53,11 @@ export function initModals() {
     hdClose.onclick = () => ($('historyDetailModal').style.display = 'none');
   }
 
+  const redrawClose = $('closeRedrawBtn');
+  if (redrawClose) {
+    redrawClose.onclick = () => ($('redrawModal').style.display = 'none');
+  }
+
   const hdModal = $('historyDetailModal');
   if (hdModal) {
     hdModal.addEventListener('click', (e) => {

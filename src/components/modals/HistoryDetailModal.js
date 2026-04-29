@@ -14,7 +14,7 @@ export const HistoryDetailModal = `
                         <div class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mb-1">详情</div>
                         <div id="hdDate" class="text-lg font-bold text-on-surface"></div>
                     </div>
-                    <button id="hdCloseBtn" onclick="document.getElementById('historyDetailModal').style.display='none'" class="material-symbols-outlined text-outline hover:text-on-surface transition-colors">close</button>
+                    <button id="hdCloseBtn" class="material-symbols-outlined text-outline hover:text-on-surface transition-colors">close</button>
                 </div>
                 <div class="flex-1 overflow-y-auto space-y-6 custom-scrollbar pr-2">
                     <div class="space-y-2">
