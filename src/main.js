@@ -26,6 +26,7 @@ import { initFormPersistence } from './init/form-persistence.js';
 import { initDataLoader } from './init/data-loader.js';
 import { initWebDAV } from './init/webdav-sync.js';
 import { bus } from './utils/event-bus.js';
+import { injectModals } from './components/ModalManager.js';
 
 // 覆写 window.alert
 overrideAlert();
@@ -34,6 +35,9 @@ overrideAlert();
 initLightbox();
 
 document.addEventListener('DOMContentLoaded', () => {
+  // 0. 注入模态框 HTML
+  injectModals();
+
   // 1. 基础 UI 和引擎初始化
   initModals();
   initTheme();
