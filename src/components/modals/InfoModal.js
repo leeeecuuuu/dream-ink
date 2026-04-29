@@ -64,14 +64,14 @@ export const InfoModal = `
 
                         <div class="pb-4 border-b border-outline-variant/50">
                             <p class="font-bold text-primary mb-1">2026-04-29</p>
-                            <p class="text-[11px] text-on-surface-variant mb-2 italic">底层重构与云同步增强：让 DreamInk 更稳、更快、更懂手机。</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">底层大手术，同步更丝滑：主要是让手机端和电脑端都更好看、好用。</p>
                             <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
-                                <li>☁️ <strong class="text-on-surface">Gitee 云同步上线</strong>：国内移动端首选同步方案，原生支持跨域，手机端也能一键备份/恢复提示词库和配置。</li>
-                                <li>⚡ <strong class="text-on-surface">架构模块化重构</strong>：代码彻底解耦，引入事件总线（Event Bus），系统响应更灵敏，告别卡顿。</li>
-                                <li>🖼️ <strong class="text-on-surface">画廊交互大改版</strong>：全新毛玻璃悬浮蒙层，桌面端“静默模式”与移动端“常驻模式”智能切换。</li>
-                                <li>🔍 <strong class="text-on-surface">高清缩略图算法</strong>：大幅提升封面生成的分辨率与质量，历史记录和咒语书从此告别模糊。</li>
-                                <li>🛡️ <strong class="text-on-surface">安全与容错增强</strong>：支持严格 CSP 策略；引入全局错误边界与加载骨架屏，运行更稳，减少闪烁。</li>
-                                <li>📶 <strong class="text-on-surface">离线模式 (PWA)</strong>：支持安装到桌面，无网络时也能正常查看历史和编辑咒语。</li>
+                                <li>☁️ <strong class="text-on-surface">Gitee 同步来啦！</strong> 手机上也能一键备份了。去码云申请个令牌，咒语书和配置轻松上云，多端互通不再是梦。</li>
+                                <li>⚡ <strong class="text-on-surface">代码底层大整改。</strong> 全部重构成了模块化架构，现在响应更灵敏，彻底告别了之前的“面条代码”卡顿感。</li>
+                                <li>🖼️ <strong class="text-on-surface">画廊按键变美了。</strong> 换成了通透的毛玻璃样式。电脑上悬浮才出现，手机上常驻但不挡图，兼顾美观和好按。</li>
+                                <li>🔍 <strong class="text-on-surface">封面从此不糊了。</strong> 优化了缩略图生成算法，清晰度翻倍，历史记录和咒语书里的封面现在非常精致。</li>
+                                <li>🛡️ <strong class="text-on-surface">运行更稳当。</strong> 解决了偶尔白屏或报错没反应的毛病，加了骨架屏加载动画，用起来更有“丝滑感”。</li>
+                                <li>📶 <strong class="text-on-surface">断网也能看。</strong> 支持 PWA 安装到桌面或手机主屏，离线状态下也能翻看历史记录和编辑咒语。</li>
                             </ul>
                         </div>
 
