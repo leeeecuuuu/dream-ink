@@ -9,6 +9,7 @@ import { el, icon } from '../utils/dom.js';
 import { state } from '../state/app-state.js';
 import { localFS } from '../storage/local-fs.js';
 import { idb } from '../storage/idb.js';
+import { bus } from '../utils/event-bus.js';
 
 export function renderPreviews() {
   const list = $('imagePreviewList');
@@ -49,7 +50,10 @@ export function renderPreviews() {
       className: 'absolute -top-2 -right-2 bg-error text-white rounded-full w-5 h-5 flex items-center justify-center z-[60] shadow-md hover:bg-red-600 transition-transform hover:scale-110',
     }, icon('close', 'text-[14px]'));
 
-    closeBtn.onclick = () => { state.selectedFiles.splice(i, 1); renderPreviews(); };
+    closeBtn.onclick = () => { 
+      state.selectedFiles.splice(i, 1); 
+      bus.emit('selectedFiles:change'); 
+    };
     wrapper.append(img, closeBtn);
     list.appendChild(wrapper);
   });
@@ -69,3 +73,6 @@ export function renderPreviews() {
     }
   }).catch(() => {});
 }
+
+// 订阅事件总线
+bus.on('selectedFiles:change', renderPreviews);

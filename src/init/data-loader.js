@@ -10,11 +10,9 @@ import { supportsFileSystemAccess } from '../utils/feature-detect.js';
 import { state } from '../state/app-state.js';
 import { idb } from '../storage/idb.js';
 import { localFS } from '../storage/local-fs.js';
-import { renderHistory } from '../ui/history.js';
 import { createGalleryItemDOM } from '../ui/gallery.js';
-import { syncModelInput, updatePreview } from '../ui/engine.js';
 import { showToast } from '../ui/toast.js';
-import { renderPreviews } from '../ui/preview.js';
+import { bus } from '../utils/event-bus.js';
 
 export function initDataLoader() {
   // 本地文件夹存储 - 使用能力检测替代 innerWidth
@@ -52,7 +50,7 @@ export function initDataLoader() {
       if (list) list.innerHTML = '<div class="text-center text-outline text-xs mt-8">正在从本地加载...</div>';
       const enriched = await Promise.all(state.historyData.map(renderHistoryItem));
       state.historyData = enriched;
-      renderHistory();
+      bus.emit('historyData:change');
 
       const galleryMeta = await localFS.loadJSON('gallery.json', []);
       if (galleryMeta.length) {
@@ -81,16 +79,16 @@ export function initDataLoader() {
             state.selectedFiles.push(new File([blob], fname, { type: blob.type }));
           } catch (e) { console.warn('恢复垫图失败:', fname, e); }
         }
-        if (state.selectedFiles.length) renderPreviews();
+        if (state.selectedFiles.length) bus.emit('selectedFiles:change');
       }
-      await localFS.loadConfig(syncModelInput, updatePreview);
+      await localFS.loadConfig(null, () => bus.emit('preview:update'));
     } else {
       idb.get('nanscript_prompt_lib').then(d => { if (Array.isArray(d) && d.length) state.promptLib = d; }).catch(() => {});
       idb.get('nanscript_history_db').then(d => {
         if (Array.isArray(d) && d.length) state.historyData = d;
         else try { const o = JSON.parse(ls('nanscript_history_db') || '[]'); if (o.length) { state.historyData = o; idb.set('nanscript_history_db', o); } } catch {}
-        renderHistory();
-      }).catch(() => renderHistory());
+        bus.emit('historyData:change');
+      }).catch(() => bus.emit('historyData:change'));
       
       idb.get('nanscript_current_refs').then(d => {
         if (Array.isArray(d) && d.length) {
@@ -100,7 +98,7 @@ export function initDataLoader() {
               if (blob) state.selectedFiles.push(new File([blob], `ref${idx}.png`, { type: blob.type }));
             }
           });
-          renderPreviews();
+          bus.emit('selectedFiles:change');
         }
       }).catch(() => {});
       

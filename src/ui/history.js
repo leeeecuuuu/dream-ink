@@ -11,6 +11,7 @@ import { idb } from '../storage/idb.js';
 import { localFS } from '../storage/local-fs.js';
 import { state } from '../state/app-state.js';
 import { showToast } from './toast.js';
+import { bus } from '../utils/event-bus.js';
 
 /**
  * 保存一条历史记录
@@ -88,7 +89,7 @@ export function saveHistory(params, b64Img, refImages = [], presetId = null) {
       if (state.historyData.length > 100) state.historyData = state.historyData.slice(0, 100);
       idb.set('nanscript_history_db', state.historyData);
     }
-    renderHistory();
+    bus.emit('historyData:change');
   }
 }
 
@@ -170,7 +171,7 @@ export function renderHistory() {
       state.historyData.splice(idx, 1);
       if (localFS.isActive()) localFS.saveJSON('history.json', state.historyData).catch(() => {});
       else idb.set('nanscript_history_db', state.historyData);
-      renderHistory();
+      bus.emit('historyData:change');
     };
 
     list.appendChild(row);
@@ -291,3 +292,6 @@ export async function showHistoryDetail(item, idx, mode = 'history') {
 
   $('historyDetailModal').style.display = 'flex';
 }
+
+// 订阅事件总线
+bus.on('historyData:change', renderHistory);

@@ -10,9 +10,8 @@ import { $, base64ToBlob, urlToFile } from './utils/helpers.js';
 import { state } from './state/app-state.js';
 import { showToast, overrideAlert } from './ui/toast.js';
 import { initTheme } from './ui/theme.js';
-import { initEngine, updatePreview } from './ui/engine.js';
-import { renderHistory } from './ui/history.js';
-import { saveLib, renderFolders, renderPrompts } from './ui/library.js';
+import { initEngine } from './ui/engine.js';
+import { saveLib } from './ui/library.js';
 import { initLightbox } from './ui/lightbox.js';
 import { initModals } from './ui/modals.js';
 import { initMobile } from './ui/mobile.js';
@@ -23,10 +22,10 @@ import { idb } from './storage/idb.js';
 import JSZip from 'jszip';
 
 // 初始器引入
-import { renderPreviews } from './ui/preview.js';
 import { initFormPersistence } from './init/form-persistence.js';
 import { initDataLoader } from './init/data-loader.js';
 import { initWebDAV } from './init/webdav-sync.js';
+import { bus } from './utils/event-bus.js';
 
 // 覆写 window.alert
 overrideAlert();
@@ -52,11 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (state.currentDetailMode === 'history') {
         state.historyData.splice(state.currentHistoryIdx, 1);
         idb.set('nanscript_history_db', state.historyData);
-        renderHistory();
+        bus.emit('historyData:change');
       } else {
         state.promptLib[state.curFolder].prompts.splice(state.currentHistoryIdx, 1);
         saveLib();
-        renderPrompts();
+        bus.emit('promptLib:promptsChange');
       }
       $('historyDetailModal').style.display = 'none';
       showToast('记录已删除');
@@ -91,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
       quality: histItem?.quality, batchCount: histItem?.batchCount,
       apiType: histItem?.apiType, refImages: histItem?.refImages,
     });
-    saveLib(); renderFolders(); showToast('已加入当前分类');
+    saveLib(); bus.emit('promptLib:change'); showToast('已加入当前分类');
   };
 
   const _hdApplyBtn = $('hdApplyBtn');
@@ -119,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     }
-    renderPreviews(); updatePreview();
+    bus.emit('selectedFiles:change'); bus.emit('preview:update');
     $('historyDetailModal').style.display = 'none';
     if (state.currentDetailMode === 'library') $('libraryModal').style.display = 'none';
     showToast('参数与垫图已导入！');
@@ -131,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
     imgInput.onchange = e => {
       const nf = Array.from(e.target.files);
       if (state.selectedFiles.length + nf.length > 10) return alert('最多 10 张！');
-      state.selectedFiles = state.selectedFiles.concat(nf); renderPreviews(); e.target.value = '';
+      state.selectedFiles = state.selectedFiles.concat(nf); bus.emit('selectedFiles:change'); e.target.value = '';
     };
     const panel = imgInput.parentElement;
     if (panel) {
@@ -166,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('addFolderBtn').onclick = () => {
     const n = $('newFolderInput').value.trim(); if (!n) return;
     state.promptLib.push({ folderName: n, prompts: [] }); $('newFolderInput').value = '';
-    state.curFolder = state.promptLib.length - 1; saveLib(); renderFolders();
+    state.curFolder = state.promptLib.length - 1; saveLib(); bus.emit('promptLib:change');
   };
 
   $('newPromptImg').onchange = e => {
@@ -182,11 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!n || !c) return alert('名称和内容必填');
     state.promptLib[state.curFolder].prompts.unshift({ name: n, content: c, thumb: state.pendingThumb });
     $('newPromptName').value = $('newPromptContent').value = $('newPromptImg').value = '';
-    $('thumbStatus').style.display = 'none'; state.pendingThumb = null; saveLib(); renderPrompts();
+    $('thumbStatus').style.display = 'none'; state.pendingThumb = null; saveLib(); bus.emit('promptLib:promptsChange');
   };
 
   // ========== 历史记录数据操作 ==========
-  $('clearHistoryBtn').onclick = () => { if (confirm('清空所有历史？')) { state.historyData = []; idb.set('nanscript_history_db', state.historyData); renderHistory(); } };
+  $('clearHistoryBtn').onclick = () => { if (confirm('清空所有历史？')) { state.historyData = []; idb.set('nanscript_history_db', state.historyData); bus.emit('historyData:change'); } };
 
   $('exportImagesBtn').onclick = async () => {
     if (!state.historyData.length) return showToast('无记录可导出', 'error');
@@ -240,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const m = new Map(state.historyData.map(i => [i.id, i])); imp.forEach(i => m.set(i.id, i));
           state.historyData = [...m.values()].sort((a, b) => b.id - a.id).slice(0, 100);
         } else state.historyData = imp.slice(0, 100);
-        idb.set('nanscript_history_db', state.historyData); renderHistory(); showToast('导入成功');
+        idb.set('nanscript_history_db', state.historyData); bus.emit('historyData:change'); showToast('导入成功');
       } catch { showToast('无效格式', 'error'); }
       e.target.value = '';
     };
@@ -253,14 +252,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!p) return showToast('请输入修改建议', 'error');
     const btn = $('confirmRedrawBtn'); btn.disabled = true; btn.textContent = '重绘中...';
     try {
-      state.selectedFiles = [await urlToFile(src, 'redraw.png', 'image/png')]; renderPreviews();
+      state.selectedFiles = [await urlToFile(src, 'redraw.png', 'image/png')]; bus.emit('selectedFiles:change');
       $('promptInput').value = p; $('redrawModal').style.display = 'none'; executeGeneration();
     } catch { showToast('图片加载失败', 'error'); }
     finally { btn.disabled = false; btn.textContent = '确认重绘'; }
   };
 
   // 终态更新
-  updatePreview();
+  bus.emit('preview:update');
 });
 
 // 3. 移动端适配

@@ -6,7 +6,7 @@
 
 import { $ } from '../utils/helpers.js';
 import { state } from '../state/app-state.js';
-import { renderFolders } from './library.js';
+import { bus } from '../utils/event-bus.js';
 
 /**
  * 初始化所有模态框的通用事件绑定
@@ -30,7 +30,7 @@ export function initModals() {
           if (!state.promptLib.length) {
             state.promptLib.push({ folderName: 'Default', prompts: [] });
           }
-          renderFolders();
+          bus.emit('promptLib:change');
         }
       };
     }

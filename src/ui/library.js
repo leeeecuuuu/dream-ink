@@ -12,6 +12,7 @@ import { localFS } from '../storage/local-fs.js';
 import { state } from '../state/app-state.js';
 import { showToast } from './toast.js';
 import { showHistoryDetail } from './history.js';
+import { bus } from '../utils/event-bus.js';
 
 /**
  * 持久化咒语书数据
@@ -61,7 +62,7 @@ export function renderFolders() {
 
     row.onclick = () => {
       state.curFolder = i;
-      renderFolders();
+      bus.emit('promptLib:change');
     };
 
     editBtn.onclick = (e) => {
@@ -70,7 +71,7 @@ export function renderFolders() {
       if (n && n.trim()) {
         f.folderName = n.trim();
         saveLib();
-        renderFolders();
+        bus.emit('promptLib:change');
         showToast('分类已重命名');
       }
     };
@@ -81,14 +82,15 @@ export function renderFolders() {
         state.promptLib.splice(i, 1);
         state.curFolder = Math.max(0, state.curFolder - 1);
         saveLib();
-        renderFolders();
+        bus.emit('promptLib:change');
       }
     };
 
     list.appendChild(row);
   });
 
-  renderPrompts();
+  // 同步触发卡片渲染
+  bus.emit('promptLib:promptsChange');
 }
 
 /**
@@ -171,7 +173,7 @@ export async function renderPrompts() {
       p.name = nn.trim();
       p.content = nc.trim();
       saveLib();
-      renderPrompts();
+      bus.emit('promptLib:promptsChange');
       showToast('已更新');
     };
 
@@ -179,9 +181,13 @@ export async function renderPrompts() {
       e.stopPropagation();
       folder.prompts.splice(i, 1);
       saveLib();
-      renderPrompts();
+      bus.emit('promptLib:promptsChange');
     };
 
     grid.appendChild(card);
   }
 }
+
+// 订阅事件总线
+bus.on('promptLib:change', renderFolders);
+bus.on('promptLib:promptsChange', renderPrompts);

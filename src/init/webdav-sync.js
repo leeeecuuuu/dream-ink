@@ -7,9 +7,7 @@
 import { $, ls } from '../utils/helpers.js';
 import { webdav } from '../storage/webdav.js';
 import { showToast } from '../ui/toast.js';
-import { renderHistory } from '../ui/history.js';
-import { renderFolders } from '../ui/library.js';
-import { syncModelInput, updatePreview } from '../ui/engine.js';
+import { bus } from '../utils/event-bus.js';
 
 export function initWebDAV() {
   // 恢复保存的凭据到表单
@@ -93,7 +91,10 @@ export function initWebDAV() {
     if (st) { st.textContent = '正在下载...'; st.classList.remove('hidden'); }
     try {
       const { success, failed, skipped } = await webdav.downloadAll({
-        renderHistory, renderFolders, syncModelInput, updatePreview,
+        renderHistory: () => bus.emit('historyData:change'),
+        renderFolders: () => bus.emit('promptLib:change'),
+        syncModelInput: () => {}, 
+        updatePreview: () => bus.emit('preview:update'),
       });
       if (st) {
           st.textContent = `✅ 恢复完成: ${success} 合并` + (skipped ? `, ${skipped} 跳过` : '') + (failed ? `, ${failed} 失败` : '');

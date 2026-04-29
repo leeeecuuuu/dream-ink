@@ -8,6 +8,7 @@
 import { $, ls } from '../utils/helpers.js';
 import { state, PROVIDER_DEFAULTS } from '../state/app-state.js';
 import { showToast } from './toast.js';
+import { bus } from '../utils/event-bus.js';
 
 /**
  * 获取当前引擎对应的模型名称
@@ -104,7 +105,7 @@ export function switchEngine(engineKey, silent = false) {
   const hint = $('engineModelHintText');
   if (hint) hint.textContent = `当前模型: ${getModel()}`;
 
-  updatePreview();
+  bus.emit('preview:update');
   if (!silent) showToast(`已切换至 ${cfg.label}`);
 }
 
@@ -158,3 +159,6 @@ export function initEngine() {
   const hint = $('engineModelHintText');
   if (hint) hint.textContent = `当前模型: ${getModel()}`;
 }
+
+// 订阅事件总线
+bus.on('preview:update', updatePreview);

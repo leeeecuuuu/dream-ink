@@ -15,7 +15,7 @@ import { el, icon } from '../utils/dom.js';
 import { state } from '../state/app-state.js';
 import { localFS } from '../storage/local-fs.js';
 import { idb } from '../storage/idb.js';
-import { getModel, syncModelInput, updatePreview } from '../ui/engine.js';
+import { getModel } from '../ui/engine.js';
 import { createGalleryItemDOM } from '../ui/gallery.js';
 import { saveHistory } from '../ui/history.js';
 import { showToast } from '../ui/toast.js';

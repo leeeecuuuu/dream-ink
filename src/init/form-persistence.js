@@ -7,7 +7,8 @@
 
 import { $, ls } from '../utils/helpers.js';
 import { state, PROVIDER_DEFAULTS } from '../state/app-state.js';
-import { syncModelInput, updatePreview } from '../ui/engine.js';
+import { syncModelInput } from '../ui/engine.js';
+import { bus } from '../utils/event-bus.js';
 import { showToast } from '../ui/toast.js';
 import { localFS } from '../storage/local-fs.js';
 
@@ -26,7 +27,7 @@ export function initFormPersistence() {
       ls('nanscript_' + id, elem.value);
       if (id === 'modelGemini' || id === 'modelOpenai') syncModelInput();
       if (id === 'ratioSelect' && window._updateRatioUI) window._updateRatioUI(elem.value);
-      updatePreview();
+      bus.emit('preview:update');
     };
     elem.oninput = elem.onchange = sync;
   });
@@ -48,7 +49,7 @@ export function initFormPersistence() {
       if (p.modelGemini && $('modelGemini')) { $('modelGemini').value = p.modelGemini; ls('nanscript_modelGemini', p.modelGemini); }
       if (p.modelOpenai && $('modelOpenai')) { $('modelOpenai').value = p.modelOpenai; ls('nanscript_modelOpenai', p.modelOpenai); }
       if ($('apiProfileName')) $('apiProfileName').value = p.name;
-      syncModelInput(); updatePreview(); showToast(`已加载: ${p.name}（可修改后保存覆盖）`);
+      syncModelInput(); bus.emit('preview:update'); showToast(`已加载: ${p.name}（可修改后保存覆盖）`);
     };
   }
 
@@ -79,7 +80,7 @@ export function initFormPersistence() {
     const mg = $('modelGemini')?.value || PROVIDER_DEFAULTS.gemini.model;
     const mo = $('modelOpenai')?.value || PROVIDER_DEFAULTS.openai.model;
     ls('nanscript_modelGemini', mg); ls('nanscript_modelOpenai', mo);
-    syncModelInput(); updatePreview();
+    syncModelInput(); bus.emit('preview:update');
     if ($('apiConfigModal')) $('apiConfigModal').style.display = 'none';
     if (localFS.isActive()) {
       localFS.saveConfig().then(() => console.log('[localFS] config.json 已写入')).catch(e => { console.error('[localFS] saveConfig 失败:', e); showToast('配置写入本地失败', 'error'); });
