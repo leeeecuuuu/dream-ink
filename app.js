@@ -640,6 +640,18 @@ async function showHistoryDetail(item, idx, mode = 'history') {
         $('hdImage').style.display = 'none';
     }
 
+    // 移动端成品图同步填充
+    const hdMobileImg = $('hdMobileImage'), hdMobileImgWrap = $('hdMobileGeneratedImg');
+    if (hdMobileImgWrap) {
+        if (imgSrc && !imgSrc.endsWith('index.html')) {
+            hdMobileImg.src = imgSrc;
+            hdMobileImgWrap.style.display = ''; // CSS 媒体查询控制显隐
+            hdMobileImgWrap.onclick = () => { $('lightboxImg').src = imgSrc; $('lightbox').style.display = 'flex'; };
+        } else {
+            hdMobileImgWrap.style.display = 'none';
+        }
+    }
+
     $('hdDate').textContent = mode === 'library' ? `🔖 ${item.name}` : item.date;
     $('hdModel').textContent = item.model || '';
     $('hdPrompt').value = item.content || (item.prompt === '纯图生成' ? '' : item.prompt) || '';
@@ -657,6 +669,8 @@ async function showHistoryDetail(item, idx, mode = 'history') {
     const hasRefFiles = localFS.isActive() && Array.isArray(item.refFiles) && item.refFiles.length;
     const hasRefImages = Array.isArray(item.refImages) && item.refImages.length;
 
+    const refSrcs = []; // 收集垫图 src，同时填充移动端顶部缩略栏
+
     if (hasRefFiles || hasRefImages) {
         refGroup.style.display = 'block';
         refList.innerHTML = '';
@@ -664,12 +678,14 @@ async function showHistoryDetail(item, idx, mode = 'history') {
             for (const fname of item.refFiles) {
                 const src = await localFS.getImageURL(fname, 'refs').catch(() => '');
                 if (!src) continue;
+                refSrcs.push(src);
                 const div = document.createElement('div'); div.className = 'preview-item';
                 div.innerHTML = `<img src="${src}">`;
                 refList.appendChild(div);
             }
         } else {
             item.refImages.forEach(src => {
+                refSrcs.push(src);
                 const div = document.createElement('div'); div.className = 'preview-item';
                 div.innerHTML = `<img src="${src}">`;
                 refList.appendChild(div);
@@ -677,6 +693,25 @@ async function showHistoryDetail(item, idx, mode = 'history') {
         }
     } else {
         refGroup.style.display = 'none';
+    }
+
+    // 移动端顶部垫图缩略栏
+    const mobileRefBar = $('hdMobileRefBar');
+    if (mobileRefBar) {
+        mobileRefBar.innerHTML = '';
+        if (refSrcs.length) {
+            refSrcs.forEach(src => {
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = '垫图';
+                // 点击打开 lightbox
+                img.onclick = () => { $('lightboxImg').src = src; $('lightbox').style.display = 'flex'; };
+                mobileRefBar.appendChild(img);
+            });
+            mobileRefBar.style.display = ''; // 由 CSS 媒体查询控制显隐
+        } else {
+            mobileRefBar.style.display = 'none';
+        }
     }
 
     $('historyDetailModal').style.display = 'flex';
@@ -878,15 +913,18 @@ document.addEventListener('DOMContentLoaded', () => {
     $('hdAddLibBtn').onclick = () => {
         const text = $('hdPrompt').value;
         if (!text) return showToast('无提示词可存', 'error');
-        const name = prompt('为这组咋语起个名字:', '历史收藏');
+        const name = prompt('为这组咒语起个名字:', '历史收藏');
         if (!name) return;
         if (!promptLib.length) promptLib.push({ folderName: 'Default', prompts: [] });
         const histItem = currentDetailMode === 'history' ? historyData[currentHistoryIdx] : null;
         promptLib[curFolder].prompts.unshift({
             name,
             content: text,
-            // 尽量保存各种图片引用：本地模式用 file 引用，浏览器模式用 base64
-            thumb: histItem?.thumb || histItem?._thumbSrc || '',
+            // blob URL 刷新后失效，只保留 data: base64；本地 FS 模式靠 thumbFile 在 renderPrompts 中按需加载
+            thumb: (() => {
+                const safeThumb = src => (src && src.startsWith('data:')) ? src : '';
+                return safeThumb(histItem?.thumb) || safeThumb(histItem?._thumbSrc) || '';
+            })(),
             fullImage: histItem?.fullImage || '',
             imageFile: histItem?.imageFile || null,
             thumbFile: histItem?.thumbFile || null,
@@ -959,13 +997,13 @@ document.addEventListener('DOMContentLoaded', () => {
         let isDark = false;
         if (t === 'auto') {
             isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            tBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">hdr_auto</span> 自动';
+            tBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">hdr_auto</span>';
         } else if (t === 'dark') {
             isDark = true;
-            tBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">dark_mode</span> 深色';
+            tBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">dark_mode</span>';
         } else {
             isDark = false;
-            tBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">light_mode</span> 亮色';
+            tBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">light_mode</span>';
         }
         
         if (isDark) html.classList.add('dark'); else html.classList.remove('dark');
@@ -1318,8 +1356,11 @@ document.addEventListener('DOMContentLoaded', () => {
         finally { btn.disabled = false; btn.textContent = '确认重绘'; }
     };
     const pickBtn = $('pickFolderBtn'), clearFolderBtnEl = $('clearFolderBtn');
-    if (!localFS._supported) {
-        const notSup = $('localFsNotSupported'); if (notSup) notSup.classList.remove('hidden');
+    const mobileEnv = window.innerWidth <= 768;
+    if (!localFS._supported || mobileEnv) {
+        // 移动端或不支持的环境：隐藏整个本地文件夹区域
+        const fsSection = $('localFsSection');
+        if (fsSection) fsSection.style.display = 'none';
         if (pickBtn) pickBtn.disabled = true;
     } else {
         if (pickBtn) pickBtn.onclick = () => localFS.pick();
@@ -1338,9 +1379,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return { ...item, _thumbSrc: thumbSrc || item.thumb || '' };
     };
 
-    // 启动加载：优先尝试本地文件夹，失败则降级到 IDB
+    // 启动加载：移动端强制走 IndexedDB，桌面端优先尝试本地文件夹
     const initData = async () => {
-        const hasLocal = await localFS.restore();
+        const mobileDevice = window.innerWidth <= 768;
+        const hasLocal = mobileDevice ? false : await localFS.restore();
 
         if (hasLocal) {
             // 本地模式：从 JSON 文件加载
@@ -1426,17 +1468,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     initData();
 
-    // 清空画庬
+    // 清空画廊
     if ($('clearGalleryBtn')) {
         $('clearGalleryBtn').onclick = () => {
-            if (!confirm('确定要清空当前的创意工坊吗？（历史记录不会受影响）')) return;
+            if (!confirm('确定要清空当前的画廊吗？（历史记录不会受影响）')) return;
             currentGalleryData = [];
             if (localFS.isActive()) localFS.saveJSON('gallery.json', []).catch(() => {});
             else idb.set('nanscript_current_gallery', []);
             $('imageGallery').innerHTML = '';
             $('resultArea').style.display = 'none';
             $('emptyState').style.display = 'block';
-            showToast('创意工坊已清空');
+            showToast('画廊已清空');
         };
     }
 
@@ -1528,4 +1570,147 @@ document.addEventListener('DOMContentLoaded', () => {
         scale = 1; pointX = 0; pointY = 0;
         setTransform();
     });
+})();
+
+// ========== 移动端适配逻辑 ==========
+(function initMobile() {
+    const isMobile = () => window.innerWidth <= 768;
+
+    // ---------- 面板切换 ----------
+    const panels = {
+        left:   document.querySelector('aside.left-panel'),
+        center: document.querySelector('section.center-panel'),
+        right:  document.querySelector('aside.right-panel'),
+    };
+
+    function switchPanel(target) {
+        if (!isMobile()) return;
+        Object.entries(panels).forEach(([key, el]) => {
+            if (!el) return;
+            el.classList.toggle('panel-active', key === target);
+        });
+        // 更新 TabBar 激活状态（排除 tab-generate 按钮）
+        document.querySelectorAll('.tab-btn[data-panel]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.panel === target);
+        });
+    }
+
+    // 初始化：移动端默认显示左侧参数面板
+    function initPanelState() {
+        if (isMobile()) {
+            switchPanel('left');
+        } else {
+            // 桌面端清除 panel-active，让 CSS 中的桌面样式生效
+            Object.values(panels).forEach(el => {
+                if (el) el.classList.remove('panel-active');
+            });
+        }
+    }
+
+    // 监听 TabBar 点击
+    document.querySelectorAll('.tab-btn[data-panel]').forEach(btn => {
+        btn.addEventListener('click', () => switchPanel(btn.dataset.panel));
+    });
+
+    // 窗口 resize 时重置面板状态
+    window.addEventListener('resize', initPanelState);
+    initPanelState();
+
+    // ---------- 生成完成后自动跳转画廊（移动端） ----------
+    // 劫持 showToast：当成功生成图像时，切换到画廊面板
+    const _origShowToast = window.showToast || showToast;
+    // 监听 runBtn 状态变化（GenerateGeneration 执行完毕后会还原按钮文字）
+    const runBtnEl = document.getElementById('runBtn');
+    if (runBtnEl) {
+        const runObserver = new MutationObserver(() => {
+            // 按钮恢复"开始创造"说明生成完毕
+            if (isMobile() && runBtnEl.textContent.includes('开始创造')) {
+                // 只有在结果区有内容时才跳
+                const resultArea = document.getElementById('resultArea');
+                if (resultArea && resultArea.style.display !== 'none') {
+                    setTimeout(() => switchPanel('center'), 300);
+                }
+            }
+        });
+        runObserver.observe(runBtnEl, { childList: true, subtree: true });
+    }
+
+    // ---------- Lightbox 双指触摸缩放 ----------
+    const lb = document.getElementById('lightbox');
+    const lbImg = document.getElementById('lightboxImg');
+    if (!lb || !lbImg) return;
+
+    let touchStartDist = 0;
+    let touchStartScale = 1;
+    let lbScale = 1;
+    let lbX = 0, lbY = 0;
+    let touchStartX = 0, touchStartY = 0;
+    let touchStartLbX = 0, touchStartLbY = 0;
+    let isDraggingTouch = false;
+
+    const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
+
+    function applyLbTransform() {
+        lbImg.style.transform = `translate(${lbX}px, ${lbY}px) scale(${lbScale})`;
+        lbImg.style.transformOrigin = 'center center';
+        lbImg.style.transition = 'none';
+    }
+
+    function resetLbTransform() {
+        lbScale = 1; lbX = 0; lbY = 0;
+        lbImg.style.transform = '';
+        lbImg.style.transition = '';
+    }
+
+    function getDist(t) {
+        const dx = t[0].clientX - t[1].clientX;
+        const dy = t[0].clientY - t[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    lb.addEventListener('touchstart', e => {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            touchStartDist = getDist(e.touches);
+            touchStartScale = lbScale;
+        } else if (e.touches.length === 1) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            touchStartLbX = lbX;
+            touchStartLbY = lbY;
+            isDraggingTouch = false;
+        }
+    }, { passive: false });
+
+    lb.addEventListener('touchmove', e => {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const dist = getDist(e.touches);
+            lbScale = clamp(touchStartScale * (dist / touchStartDist), 1, 8);
+            applyLbTransform();
+        } else if (e.touches.length === 1 && lbScale > 1) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - touchStartX;
+            const dy = e.touches[0].clientY - touchStartY;
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isDraggingTouch = true;
+            lbX = touchStartLbX + dx;
+            lbY = touchStartLbY + dy;
+            applyLbTransform();
+        }
+    }, { passive: false });
+
+    lb.addEventListener('touchend', e => {
+        if (e.touches.length === 0 && !isDraggingTouch && lbScale === 1) {
+            // 单指单击关闭（未拖拽、未缩放）
+            lb.style.display = 'none';
+            resetLbTransform();
+        }
+        isDraggingTouch = false;
+    });
+
+    // lightbox 打开时重置 transform
+    const lbObserver = new MutationObserver(() => {
+        if (lb.style.display === 'none') resetLbTransform();
+    });
+    lbObserver.observe(lb, { attributes: true, attributeFilter: ['style'] });
 })();

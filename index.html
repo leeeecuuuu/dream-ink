@@ -4,78 +4,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GBanavel Ai image</title>
+    <title>DreamInk</title>
     <meta name="description" content="图像生成工作台">
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        primary: 'var(--accent)',
-                        'primary-container': 'var(--accent)',
-                        'on-primary-container': '#ffffff',
-                        'primary-fixed-variant': 'var(--accent-hover)',
-                        'on-primary-fixed-variant': '#ffffff',
-                        surface: 'var(--bg-primary)',
-                        'surface-container-lowest': 'var(--bg-secondary)',
-                        'surface-container-low': 'var(--bg-tertiary)',
-                        'surface-container': 'var(--bg-tertiary)',
-                        'surface-container-high': 'var(--input-bg)',
-                        'surface-container-highest': 'var(--input-bg)',
-                        'on-surface': 'var(--text-primary)',
-                        'on-surface-variant': 'var(--text-secondary)',
-                        outline: 'var(--text-muted)',
-                        'outline-variant': 'var(--border-color)',
-                        error: 'var(--error-text)',
-                        success: 'var(--success-text)',
-                    },
-                    fontFamily: {
-                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-                        headline: ['Inter', 'sans-serif'],
-                        display: ['Inter', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-    
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    
-    <!-- 外部样式表 (CSS变量 & 自定义组件) -->
-    <link rel="stylesheet" href="style.css">
-    
-    <style>
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-    </style>
 </head>
 
 <body class="text-on-surface h-screen flex flex-col overflow-hidden antialiased tracking-tight">
     
     <!-- TopAppBar -->
-    <header class="bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center w-full px-6 h-16 fixed top-0 z-50">
-        <div class="flex items-center gap-6">
-            <span class="text-xl font-black tracking-tighter text-primary">GBanavel Ai image</span>
-            <button id="openLibraryBtn" class="flex items-center gap-1.5 text-xs bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high px-3 py-1.5 rounded-md transition-colors border border-outline-variant font-bold shadow-sm">
-                <span class="material-symbols-outlined text-[16px]">menu_book</span> 咒语书
+    <header class="bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center w-full px-4 h-16 fixed top-0 z-50">
+        <div class="flex items-center gap-3">
+            <span class="text-xl font-black tracking-tighter text-primary">DreamInk</span>
+            <button id="openLibraryBtn" class="flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high" title="咒语书">
+                <span class="material-symbols-outlined text-[20px]">menu_book</span>
             </button>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-1">
             <span id="engineBadge" class="gemini">✦ Banana · Gemini</span>
-            <button id="infoBtn" class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high text-sm font-medium">
-                <span class="material-symbols-outlined text-[18px]">explore</span> 指南
+            <button id="infoBtn" title="指南" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
+                <span class="material-symbols-outlined text-[20px]">explore</span>
             </button>
-            <button id="apiConfigBtn" class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high text-sm font-medium">
-                <span class="material-symbols-outlined text-[18px]">settings</span> 配置
+            <button id="apiConfigBtn" title="API 配置" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
+                <span class="material-symbols-outlined text-[20px]">settings</span>
             </button>
-            <button id="themeToggle" class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high text-sm font-medium">
-                <span class="material-symbols-outlined text-[18px]">dark_mode</span> 深色
+            <button id="themeToggle" title="切换主题" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
+                <span class="material-symbols-outlined text-[20px]">dark_mode</span>
             </button>
         </div>
     </header>
@@ -83,7 +39,7 @@
     <main class="flex flex-1 pt-16 overflow-hidden">
         
         <!-- Left Sidebar (Generator Controls) -->
-        <aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-[380px] bg-surface-container-low border-r border-outline-variant flex flex-col p-6 font-sans text-sm font-medium z-40 overflow-y-auto custom-scrollbar">
+        <aside class="left-panel fixed left-0 top-16 h-[calc(100vh-64px)] w-[380px] bg-surface-container-low border-r border-outline-variant flex flex-col p-6 font-sans text-sm font-medium z-40 overflow-y-auto custom-scrollbar">
             <div class="space-y-6 flex-1 pt-2">
 
                 <!-- 引擎快速切换 -->
@@ -145,7 +101,7 @@
                         <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">图像质量</label>
                         <select id="qualitySelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
                             <option value="standard" selected>标准画质</option>
-                            <option value="high">高画质</option>
+                            <option value="high">高清画质</option>
                             <option value="ultra">极致画质</option>
                         </select>
                     </div>
@@ -172,13 +128,18 @@
                     </div>
                 </div>
                 
-                <!-- Batch Slider -->
+                <!-- 生成数量（数字输入） -->
                 <div class="space-y-4">
                     <div class="flex justify-between items-center">
-                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">生成数量</label>
-                        <span id="batchValue" class="text-primary text-[11px] font-bold bg-primary/10 px-2 py-0.5 rounded-sm">1</span>
+                        <label for="batchSelect" class="text-[11px] font-bold tracking-widest text-on-surface-variant">并发数量</label>
                     </div>
-                    <input type="range" id="batchSelect" min="1" max="4" value="1" step="1" class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <input type="number" id="batchSelect" min="1" max="20" value="1" step="1"
+                            class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface text-center font-mono font-bold focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
+                            placeholder="1-20">
+                        <span class="text-[10px] text-on-surface-variant whitespace-nowrap font-medium">张 / 次</span>
+                    </div>
+                    <p class="text-[10px] text-outline leading-relaxed">填入 1~20 的整数。数字越大并发越多，请注意 API 频率限制。</p>
                 </div>
                 
                 <!-- Image Reference -->
@@ -200,12 +161,24 @@
                     <span class="material-symbols-outlined">auto_awesome</span>
                     开始创造
                 </button>
+                <!-- 批量提交 -->
+                <div class="flex items-center gap-2 mt-3">
+                    <input type="number" id="multiTaskCount" min="2" max="50" value="3" step="1" placeholder="次数"
+                        class="w-20 bg-surface-container-highest border border-outline-variant rounded-lg px-2 py-1.5 text-xs text-on-surface text-center font-mono font-bold focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
+                    <button id="multiTaskBtn" class="flex-1 bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline-variant font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors text-xs">
+                        <span class="material-symbols-outlined text-[16px]">playlist_add</span>
+                        批量提交任务
+                    </button>
+                    <button id="clearQueueBtn" class="hidden bg-error/10 hover:bg-error/20 text-error border border-error/20 px-2.5 py-2 rounded-lg text-xs font-bold transition-colors" title="清空队列">
+                        <span class="material-symbols-outlined text-[16px]">playlist_remove</span>
+                    </button>
+                </div>
                 <div id="statusBox" class="text-center mt-4 text-xs font-medium text-primary h-4"></div>
             </div>
         </aside>
 
         <!-- Center Workspace -->
-        <section class="flex-1 ml-[380px] mr-80 bg-surface-container-lowest min-h-screen overflow-y-auto p-8 relative custom-scrollbar">
+        <section class="center-panel flex-1 ml-[380px] mr-80 bg-surface-container-lowest min-h-screen overflow-y-auto p-8 relative custom-scrollbar">
             
             <div class="max-w-[1400px] mx-auto">
                 <div id="emptyState" class="flex flex-col items-center justify-center text-center space-y-6 h-[70vh]">
@@ -213,7 +186,7 @@
                         <span class="material-symbols-outlined text-4xl text-on-surface-variant opacity-50">auto_fix_high</span>
                     </div>
                     <div>
-                        <h3 class="font-headline font-bold text-lg text-on-surface mb-2 tracking-tight">创意工坊</h3>
+                        <h3 class="font-headline font-bold text-lg text-on-surface mb-2 tracking-tight">画廊</h3>
                         <p class="text-sm text-on-surface-variant leading-relaxed max-w-[280px] mx-auto">配置左侧参数并点击生成<br>精美画面将呈现在这里</p>
                     </div>
                 </div>
@@ -233,7 +206,7 @@
                             </div>
                             <div class="flex items-center gap-2">
                                 <button id="clearGalleryBtn" class="text-[11px] font-bold text-error hover:text-white hover:bg-error bg-error/10 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1">
-                                    <span class="material-symbols-outlined text-[14px]">delete_sweep</span> 清空工坊
+                                    <span class="material-symbols-outlined text-[14px]">delete_sweep</span> 清空画廊
                                 </button>
                             </div>
                         </div>
@@ -244,7 +217,7 @@
         </section>
 
         <!-- Right Sidebar (History Sidebar) -->
-        <aside id="historySidebar" class="fixed right-0 top-16 h-[calc(100vh-64px)] w-80 bg-surface border-l border-outline-variant flex flex-col p-6 font-sans z-40 overflow-hidden">
+        <aside id="historySidebar" class="right-panel fixed right-0 top-16 h-[calc(100vh-64px)] w-80 bg-surface border-l border-outline-variant flex flex-col p-6 font-sans z-40 overflow-hidden">
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <span class="text-[10px] tracking-widest text-on-surface-variant font-bold">历史库</span>
@@ -320,7 +293,7 @@
         <div class="redraw-content">
             <div class="flex justify-between items-center mb-5">
                 <h3 class="font-bold text-on-surface m-0 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary text-[20px]">brush</span> 局部重绘变体
+                    <span class="material-symbols-outlined text-primary text-[20px]">brush</span> 局部重绘
                 </h3>
                 <button onclick="document.getElementById('redrawModal').style.display='none'" class="material-symbols-outlined text-outline hover:text-on-surface transition-colors">close</button>
             </div>
@@ -449,6 +422,41 @@
                     </div>
                 </div>
 
+                <!-- 云存储同步（坚果云 WebDAV） -->
+                <div class="space-y-3 pt-5 mt-5 border-t border-outline-variant">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[18px]">cloud_sync</span>
+                        <span class="text-sm font-bold text-on-surface">云存储同步</span>
+                        <span id="webdavBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full border bg-success/10 text-success border-success/20">已配置</span>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant leading-relaxed">
+                        通过 WebDAV 将历史记录、咒语书、配置同步到坚果云或其他支持 WebDAV 的云盘。
+                        <br><strong class="text-on-surface">坚果云设置：</strong> 登录坚果云 → 账号信息 → 安全选项 → 第三方应用管理 → 添加应用密码
+                    </p>
+                    <div class="space-y-2">
+                        <input type="url" id="webdavUrl" placeholder="WebDAV 地址 (如 https://dav.jianguoyun.com/dav/)" class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
+                        <div class="flex gap-2">
+                            <input type="text" id="webdavUser" placeholder="账号（邮箱）" class="flex-1 bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
+                            <input type="password" id="webdavPass" placeholder="应用密码" class="flex-1 bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
+                        </div>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <button id="webdavTestBtn" class="flex items-center gap-1 bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline-variant px-3 py-2 rounded-lg text-xs font-bold transition-colors">
+                            <span class="material-symbols-outlined text-[14px]">wifi_tethering</span> 测试连接
+                        </button>
+                        <button id="webdavSaveBtn" class="flex items-center gap-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors">
+                            <span class="material-symbols-outlined text-[14px]">save</span> 保存凭据
+                        </button>
+                        <button id="webdavUploadBtn" class="flex items-center gap-1 bg-primary text-white px-3 py-2 rounded-lg text-xs font-bold hover:brightness-110 transition-all">
+                            <span class="material-symbols-outlined text-[14px]">cloud_upload</span> 上传到云端
+                        </button>
+                        <button id="webdavDownloadBtn" class="flex items-center gap-1 bg-success/10 hover:bg-success/20 text-success border border-success/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors">
+                            <span class="material-symbols-outlined text-[14px]">cloud_download</span> 从云端恢复
+                        </button>
+                    </div>
+                    <div id="webdavStatus" class="text-[11px] text-on-surface-variant font-medium hidden"></div>
+                </div>
+
             </div>
             <div class="px-6 py-4 border-t border-outline-variant bg-surface-container text-right">
                 <button id="applyApiConfigBtn" class="bg-primary text-on-primary-container px-6 py-2 rounded-lg font-bold text-sm hover:brightness-110 transition-all">确认 / 关闭</button>
@@ -458,8 +466,11 @@
 
     <!-- 历史详情模态框 -->
     <div class="modal-overlay" id="historyDetailModal">
-        <div class="modal-content !max-w-[1000px] !w-[90vw] !flex-row overflow-hidden">
-            <div class="w-1/2 bg-surface-container-lowest flex items-center justify-center p-4 border-r border-outline-variant">
+        <div class="modal-content !max-w-[1000px] !w-[90vw] flex overflow-hidden">
+            <!-- 移动端专属：顶部垫图缩略栏 -->
+            <div id="hdMobileRefBar" style="display:none"></div>
+            <!-- 成品图区 -->
+            <div id="hdImageSection" class="w-1/2 bg-surface-container-lowest flex items-center justify-center p-4 border-r border-outline-variant">
                 <img id="hdImage" src="" class="max-w-full max-h-[80vh] object-contain rounded-lg shadow-lg cursor-zoom-in">
             </div>
             <div class="w-1/2 p-6 flex flex-col h-[80vh]">
@@ -483,6 +494,10 @@
                         <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画面描述</label>
                         <textarea id="hdPrompt" readonly class="w-full h-32 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-sm text-on-surface resize-none focus:ring-0 custom-scrollbar"></textarea>
                     </div>
+                    <!-- 移动端专属：成品图展示区（桌面端隐藏） -->
+                    <div id="hdMobileGeneratedImg" style="display:none" class="rounded-xl overflow-hidden border border-outline-variant cursor-zoom-in">
+                        <img id="hdMobileImage" src="" alt="成品图" class="w-full object-contain">
+                    </div>
                     <div id="hdRefImagesGroup" class="space-y-2" style="display:none">
                         <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">参考垫图</label>
                         <div id="hdRefImages" class="flex gap-2 flex-wrap"></div>
@@ -494,7 +509,7 @@
                     </button>
                     <div class="flex gap-2">
                         <button id="hdCopyBtn" class="text-on-surface-variant hover:text-on-surface bg-surface-container hover:bg-surface-container-high border border-outline-variant px-3 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-1">
-                            <span class="material-symbols-outlined text-[18px]">content_copy</span> 复制咒语
+                            <span class="material-symbols-outlined text-[18px]">content_copy</span> 复制焚诀
                         </button>
                         <button id="hdAddLibBtn" class="text-on-surface-variant hover:text-primary bg-surface-container hover:bg-primary/10 border border-outline-variant px-3 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-1">
                             <span class="material-symbols-outlined text-[18px]">bookmark_add</span> 收藏
@@ -528,11 +543,11 @@
                 <div class="p-6 overflow-y-auto text-sm text-on-surface leading-relaxed custom-scrollbar space-y-4">
                     <div id="tab-author" class="info-pane space-y-4">
                         <h4 class="font-bold text-on-surface text-base">关于本工具</h4>
-                        <p class="text-on-surface-variant"><strong class="text-on-surface">GBanavel Ai image</strong> 是一个完全运行在浏览器中的客户端应用。直接利用 fetch API 直连 Google Gemini 或 OpenAI 兼容服务器进行文生图和图生图。</p>
+                        <p class="text-on-surface-variant"><strong class="text-on-surface">DreamInk</strong> 是一个完全运行在浏览器中的客户端应用。利用 fetch API 直连 Google Gemini 或 OpenAI 兼容服务器进行文生图和图生图。</p>
                         <p class="text-on-surface-variant">零后端依赖，所有用户配置（API Key、提示词库、历史记录）均安全存储在你本地的浏览器 LocalStorage 中。</p>
                         <div class="pt-3 mt-3 border-t border-outline-variant space-y-2">
-                            <p class="text-on-surface-variant"><strong class="text-on-surface">作者：</strong>ClaudeOpus4.6/Gemini3.1pro</p>
-                            <p class="text-on-surface-variant text-xs leading-relaxed"><strong class="text-on-surface">鸣谢名单：</strong>青空莉的生图脚本 | 类脑Angela的生图前端 | kakka的kavelai | Jasmine的场外援助</p>
+                            <p class="text-on-surface-variant"><strong class="text-on-surface">作者：</strong>Claude Opus 4.6 thinking | Gemini 3.1 pro</p>
+                            <p class="text-on-surface-variant text-xs leading-relaxed"><strong class="text-on-surface">鸣谢名单：</strong> 青空莉的生图脚本 | Angela的生图前端 | kakaa的kavelai | Jasmine的热心 | 肚子疼的升级优化</p>
                         </div>
                     </div>
                     <div id="tab-tips" class="info-pane hidden space-y-4">
@@ -573,37 +588,37 @@
 
                         <div class="pb-4 border-b border-outline-variant/50">
                             <p class="font-bold text-primary mb-1">2026-04-25</p>
-                            <p class="text-[11px] text-on-surface-variant mb-2 italic">这次更新比较大，主要解决"用着用着数据就没了"这个老大难。</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">这次更新较大，主要解决了意外丢失数据的难题。</p>
                             <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
-                                <li>🗂️ <strong class="text-on-surface">图片终于能存到硬盘了！</strong>在配置里授权一个本地文件夹，之后生成的图、历史、咒语书通通写到你电脑里，清缓存也不会丢。</li>
-                                <li>⚙️ <strong class="text-on-surface">API 配置也能记住了。</strong>Key、接口地址这些会自动保存到本地，下次打开直接就能用，不用重新填一遍。</li>
-                                <li>🖼️ <strong class="text-on-surface">历史记录放大图片清楚了。</strong>以前点开历史详情放大是模糊的小图，现在加载的是原图，清清楚楚。</li>
-                                <li>📎 <strong class="text-on-surface">垫图不丢了。</strong>历史里能看到当时用的参考垫图；刷新页面后左边的垫图也会自动恢复，不用重传。</li>
-                                <li>📖 <strong class="text-on-surface">咒语书卡片有图了。</strong>从历史收藏咒语时，图片跟着一起存进去，咒语书不再是一堆空白格子。</li>
-                                <li>⏱️ <strong class="text-on-surface">生成时能看到等了多少秒了。</strong>状态栏和图片占位格里会实时显示秒数，不用干等着猜什么时候出。</li>
-                                <li>🔇 <strong class="text-on-surface">生成完不再弹文字了。</strong>以前图生出来会突然蹦出一段文字描述，现在修掉了，干净很多。</li>
-                                <li>🖼️ <strong class="text-on-surface">历史小图立刻就能看到了。</strong>新生成的图马上出现在历史里，不再需要刷新才能显示。</li>
+                                <li>🎉 <strong class="text-on-surface">全面焕新！</strong>在肚子疼的支持下追加了gpt模式，更名为DreamInk！</li>
+                                <li>🗂️ <strong class="text-on-surface">图片能存到硬盘。</strong>在配置里授权一个本地文件夹，之后生成的图、历史、咒语书通通写到你电脑里，清缓存也不会丢。</li>
+                                <li>⚙️ <strong class="text-on-surface">记住API 配置。</strong>Key、接口地址这些会自动保存到本地。</li>
+                                <li>🖼️ <strong class="text-on-surface">历史记录放大图片。</strong>以前点开历史详情放大是模糊的小图，现在加载的是原图。</li>
+                                <li>📎 <strong class="text-on-surface">垫图保存。</strong>历史里能看到当时用的参考垫图；刷新页面后左边的垫图也会自动恢复。</li>
+                                <li>📖 <strong class="text-on-surface">咒语书卡片有图了。</strong>从历史收藏咒语时，图片跟着一起存进去。</li>
+                                <li>⏱️ <strong class="text-on-surface">生成时能看到等待时长。</strong>状态栏和图片占位格里会实时显示秒数。</li>
+                                <li>🖼️ <strong class="text-on-surface">历史小图立刻就能看到。</strong>新生成的图马上出现在历史里，不再需要刷新才能显示。</li>
                             </ul>
                         </div>
 
                         <div class="pb-4 border-b border-outline-variant/50">
-                            <p class="font-bold text-primary mb-1">2026-04-25（早些时候）</p>
-                            <p class="text-[11px] text-on-surface-variant mb-2 italic">主要把"选尺寸"从玄学变成了正常人能看懂的样子。</p>
+                            <p class="font-bold text-primary mb-1">2026-04-25(早些时候）</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">主要把"选尺寸"从玄学变成了简单易懂的样子。</p>
                             <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
                                 <li>📐 <strong class="text-on-surface">画幅选择大改版。</strong>下拉菜单重新设计了，分了组、加了标注，横版竖版正方形一眼就能找到，支持到 4K。</li>
-                                <li>✏️ <strong class="text-on-surface">自定义尺寸不用拼字符串了。</strong>宽和高现在是两个独立的输入框，告别"1024x768"这种容易手抖打错的格式。</li>
-                                <li>🔀 <strong class="text-on-surface">切换引擎不会互相覆盖模型名了。</strong>Gemini 和 GPT 各自记自己的模型配置，切来切去不会把对方盖掉。</li>
-                                <li>🔍 <strong class="text-on-surface">放大看图不飘了。</strong>以前滚轮缩放图片会漂移跑位，现在稳稳跟着鼠标缩放，体验舒服多了。</li>
+                                <li>✏️ <strong class="text-on-surface">可自定义尺寸。</strong>宽和高现在是两个独立的输入框，告别"1024x768"这种容易手抖打错的格式。</li>
+                                <li>🔀 <strong class="text-on-surface">切换引擎不会互相覆盖模型名。</strong>Gemini 和 GPT 各自记自己的模型配置，切来切去不会把对方盖掉。</li>
+                                <li>🔍 <strong class="text-on-surface">放大看图不飘。</strong>以前滚轮缩放图片会漂移跑位，现在跟着鼠标缩放，体验更佳。</li>
                             </ul>
                         </div>
 
                         <div class="pb-4 border-b border-outline-variant/50">
                             <p class="font-bold text-primary mb-1">2026-04-25（更早）</p>
-                            <p class="text-[11px] text-on-surface-variant mb-2 italic">大改版，界面全新出炉，认不出来正常。</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">大改版，界面全新出炉。</p>
                             <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
-                                <li>🎨 全新界面，深色模式，跟系统走自动切亮色/暗色，眼睛舒服了。</li>
+                                <li>🎨 全新界面，深色模式，跟系统走自动切亮色/暗色。</li>
                                 <li>⚡ 同时支持 Gemini 和 GPT 两套生图引擎，左上角一键切换。</li>
-                                <li>📦 批量生成多张图，每一张都会完整记到历史里，一张都不会漏。</li>
+                                <li>📦 批量生成多张图，每一张都会完整记到历史里。</li>
                                 <li>🔖 历史详情里可以直接复制咒语，或者一键把参数填回左边重新生成。</li>
                             </ul>
                         </div>
@@ -611,7 +626,7 @@
                         <div class="pb-4 border-b border-outline-variant/50">
                             <p class="font-bold text-primary mb-1">2026-03-26 · 诞生</p>
                             <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
-                                <li>🎉 BanavelAi Image 开张了！欢迎来玩。</li>
+                                <li>🎉 BanavelAi Image 开张了！欢迎使用。</li>
                                 <li>有什么想要的功能或者 Bug，欢迎反馈～</li>
                                 <li>人话：Antigravity 又 CD 了，有啥问题下周再说。</li>
                             </ul>
@@ -635,17 +650,38 @@
     <!-- Lightbox -->
     <div id="lightbox" class="relative">
         <img id="lightboxImg" src="" alt="Zoomed image">
-        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 text-white/90 backdrop-blur-md px-5 py-2.5 rounded-full text-xs pointer-events-none flex items-center gap-2 tracking-wide shadow-lg border border-white/10 opacity-70 transition-opacity duration-300">
+        <!-- 桌面端提示 -->
+        <div class="lightbox-hint-desktop absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 text-white/90 backdrop-blur-md px-5 py-2.5 rounded-full text-xs pointer-events-none flex items-center gap-2 tracking-wide shadow-lg border border-white/10 opacity-70 transition-opacity duration-300">
             <span class="material-symbols-outlined text-[16px]">mouse</span>
             滚轮缩放 / 拖拽漫游 / 单击关闭
+        </div>
+        <!-- 移动端提示 -->
+        <div class="lightbox-hint-mobile absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 text-white/90 backdrop-blur-md px-5 py-2.5 rounded-full text-xs pointer-events-none items-center gap-2 tracking-wide shadow-lg border border-white/10 opacity-70 transition-opacity duration-300">
+            <span class="material-symbols-outlined text-[16px]">pinch_zoom_in</span>
+            双指缩放 / 单指拖拽 / 单击关闭
         </div>
     </div>
 
     <!-- Toast 通知容器 -->
     <div id="toastContainer" class="fixed bottom-6 right-6 flex flex-col gap-2 z-[99999]"></div>
 
-    <!-- 外部脚本 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="app.js"></script>
+    <!-- 移动端底部 TabBar -->
+    <nav id="mobileTabBar">
+        <button class="tab-btn active" id="tabParams" data-panel="left">
+            <span class="material-symbols-outlined">tune</span>
+            参数
+        </button>
+        <button class="tab-btn" id="tabGallery" data-panel="center">
+            <span class="material-symbols-outlined">image</span>
+            画廊
+        </button>
+        <button class="tab-btn" id="tabHistory" data-panel="right">
+            <span class="material-symbols-outlined">history</span>
+            历史
+        </button>
+    </nav>
+
+    <!-- Vite 模块入口 -->
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>
