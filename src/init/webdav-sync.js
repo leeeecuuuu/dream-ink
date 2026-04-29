@@ -12,9 +12,11 @@ import { bus } from '../utils/event-bus.js';
 export function initWebDAV() {
   // 恢复保存的凭据到表单
   const wUrl = ls('nanscript_webdav_url');
+  const wProxy = ls('nanscript_webdav_proxy');
   const wUser = ls('nanscript_webdav_user');
   const wPass = ls('nanscript_webdav_pass');
   if (wUrl && $('webdavUrl')) $('webdavUrl').value = wUrl;
+  if (wProxy && $('webdavProxy')) $('webdavProxy').value = wProxy;
   if (wUser && $('webdavUser')) $('webdavUser').value = wUser;
   if (wPass && $('webdavPass')) $('webdavPass').value = wPass;
   if (webdav.isConfigured()) {
@@ -26,10 +28,11 @@ export function initWebDAV() {
   const saveBtn = $('webdavSaveBtn');
   if (saveBtn) saveBtn.onclick = () => {
     const url = $('webdavUrl').value.trim();
+    const proxy = $('webdavProxy')?.value.trim() || '';
     const user = $('webdavUser').value.trim();
     const pass = $('webdavPass').value.trim();
     if (!url || !user || !pass) return showToast('请填写完整的 WebDAV 信息', 'error');
-    webdav.saveCredentials(url, user, pass);
+    webdav.saveCredentials(url, user, pass, proxy);
     const badge = $('webdavBadge');
     if (badge) badge.classList.remove('hidden');
     showToast('WebDAV 凭据已保存');
@@ -39,11 +42,12 @@ export function initWebDAV() {
   const testBtn = $('webdavTestBtn');
   if (testBtn) testBtn.onclick = async () => {
     const url = $('webdavUrl').value.trim();
+    const proxy = $('webdavProxy')?.value.trim() || '';
     const user = $('webdavUser').value.trim();
     const pass = $('webdavPass').value.trim();
     if (!url || !user || !pass) return showToast('请先填写 WebDAV 信息', 'error');
     // 临时保存以便测试
-    webdav.saveCredentials(url, user, pass);
+    webdav.saveCredentials(url, user, pass, proxy);
     const st = $('webdavStatus');
     if (st) {
         st.textContent = '正在测试连接...';

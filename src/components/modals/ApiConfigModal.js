@@ -126,6 +126,7 @@ export const ApiConfigModal = `
                     </p>
                     <div class="space-y-2">
                         <input type="url" id="webdavUrl" placeholder="WebDAV 地址 (如 https://dav.jianguoyun.com/dav/)" class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
+                        <input type="url" id="webdavProxy" placeholder="CORS 代理地址 (可选，用于解决跨域，如 Cloudflare Worker 地址)" class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
                         <div class="flex gap-2">
                             <input type="text" id="webdavUser" placeholder="账号（邮箱）" class="flex-1 bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
                             <input type="password" id="webdavPass" placeholder="应用密码" class="flex-1 bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">

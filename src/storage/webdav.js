@@ -46,6 +46,8 @@ export const webdav = {
   get user() { return ls('nanscript_webdav_user') || ''; },
   /** @returns {string} 密码/应用密码 */
   get pass() { return ls('nanscript_webdav_pass') || ''; },
+  /** @returns {string} CORS 代理地址 */
+  get proxy() { return ls('nanscript_webdav_proxy') || ''; },
 
   /** 是否已配置 WebDAV 连接 */
   isConfigured() {
@@ -57,10 +59,14 @@ export const webdav = {
    * @returns {Object} HTTP 请求头
    * @private
    */
-  _headers() {
-    return {
+  _headers(targetUrl = null) {
+    const headers = {
       Authorization: 'Basic ' + btoa(`${this.user}:${this.pass}`),
     };
+    if (this.proxy && targetUrl) {
+      headers['X-Target-Url'] = targetUrl;
+    }
+    return headers;
   },
 
   /**
@@ -71,7 +77,11 @@ export const webdav = {
    */
   _fileUrl(filename) {
     const base = this.url.replace(/\/+$/, '');
-    return `${base}/DreamInk/${filename}`;
+    const targetUrl = `${base}/DreamInk/${filename}`;
+    if (this.proxy) {
+      return { url: this.proxy, targetUrl };
+    }
+    return { url: targetUrl, targetUrl: null };
   },
 
   /**
@@ -80,10 +90,11 @@ export const webdav = {
    */
   async _ensureDir() {
     const dirUrl = this.url.replace(/\/+$/, '') + '/DreamInk/';
+    const fetchUrl = this.proxy ? this.proxy : dirUrl;
     try {
-      await fetch(dirUrl, {
+      await fetch(fetchUrl, {
         method: 'MKCOL',
-        headers: this._headers(),
+        headers: this._headers(dirUrl),
       });
     } catch {
       // 目录可能已存在，忽略 405/409 错误
@@ -97,11 +108,11 @@ export const webdav = {
    * @returns {Promise<boolean>}
    */
   async uploadFile(filename, data) {
-    const url = this._fileUrl(filename);
+    const { url, targetUrl } = this._fileUrl(filename);
     const res = await fetch(url, {
       method: 'PUT',
       headers: {
-        ...this._headers(),
+        ...this._headers(targetUrl),
         'Content-Type': 'application/json; charset=utf-8',
       },
       body: JSON.stringify(data, null, 2),
@@ -118,10 +129,10 @@ export const webdav = {
    * @returns {Promise<*>} 解析后的 JSON 数据，不存在时返回 null
    */
   async downloadFile(filename) {
-    const url = this._fileUrl(filename);
+    const { url, targetUrl } = this._fileUrl(filename);
     const res = await fetch(url, {
       method: 'GET',
-      headers: this._headers(),
+      headers: this._headers(targetUrl),
     });
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`WebDAV GET 失败: ${res.status}`);
@@ -134,10 +145,11 @@ export const webdav = {
    */
   async testConnection() {
     try {
-      const res = await fetch(this.url, {
+      const fetchUrl = this.proxy ? this.proxy : this.url;
+      const res = await fetch(fetchUrl, {
         method: 'PROPFIND',
         headers: {
-          ...this._headers(),
+          ...this._headers(this.url),
           Depth: '0',
         },
       });
@@ -262,10 +274,11 @@ export const webdav = {
    * @param {string} user - 用户名
    * @param {string} pass - 密码
    */
-  saveCredentials(url, user, pass) {
+  saveCredentials(url, user, pass, proxy = '') {
     ls('nanscript_webdav_url', url);
     ls('nanscript_webdav_user', user);
     ls('nanscript_webdav_pass', pass);
+    ls('nanscript_webdav_proxy', proxy);
   },
 
   /**
@@ -275,5 +288,6 @@ export const webdav = {
     localStorage.removeItem('nanscript_webdav_url');
     localStorage.removeItem('nanscript_webdav_user');
     localStorage.removeItem('nanscript_webdav_pass');
+    localStorage.removeItem('nanscript_webdav_proxy');
   },
 };

@@ -239,7 +239,33 @@
                     </button>
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar" id="historyList"></div>
+            <div class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar" id="historyList">
+                <!-- 骨架屏 -->
+                <div class="animate-pulse flex gap-3 p-3 bg-surface-container rounded-xl">
+                    <div class="w-16 h-16 bg-outline-variant/30 rounded-lg"></div>
+                    <div class="flex-1 space-y-2 py-1">
+                        <div class="h-3 bg-outline-variant/30 rounded w-3/4"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-1/2"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-5/6"></div>
+                    </div>
+                </div>
+                <div class="animate-pulse flex gap-3 p-3 bg-surface-container rounded-xl">
+                    <div class="w-16 h-16 bg-outline-variant/30 rounded-lg"></div>
+                    <div class="flex-1 space-y-2 py-1">
+                        <div class="h-3 bg-outline-variant/30 rounded w-full"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-2/3"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-1/2"></div>
+                    </div>
+                </div>
+                <div class="animate-pulse flex gap-3 p-3 bg-surface-container rounded-xl">
+                    <div class="w-16 h-16 bg-outline-variant/30 rounded-lg"></div>
+                    <div class="flex-1 space-y-2 py-1">
+                        <div class="h-3 bg-outline-variant/30 rounded w-5/6"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-1/2"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-3/4"></div>
+                    </div>
+                </div>
+            </div>
         </aside>
 
     </main>

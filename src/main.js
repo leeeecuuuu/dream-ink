@@ -20,6 +20,10 @@ import { fetchModels } from './api/model-fetch.js';
 import { enqueueTask, enqueueMultiple, clearQueue, executeGeneration } from './core/generator.js';
 import { idb } from './storage/idb.js';
 import JSZip from 'jszip';
+import { registerSW } from 'virtual:pwa-register';
+
+// 注册 Service Worker (PWA 离线支持)
+registerSW({ immediate: true });
 
 // 初始器引入
 import { initFormPersistence } from './init/form-persistence.js';
@@ -27,6 +31,16 @@ import { initDataLoader } from './init/data-loader.js';
 import { initWebDAV } from './init/webdav-sync.js';
 import { bus } from './utils/event-bus.js';
 import { injectModals } from './components/ModalManager.js';
+
+// 全局错误边界 (Error Boundary)
+window.addEventListener('error', (e) => {
+  console.error('【捕获到全局错误】', e.error || e.message);
+  showToast(`系统错误: ${e.message}`, 'error');
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('【捕获到未处理的 Promise 异常】', e.reason);
+  showToast(`网络或请求错误: ${e.reason?.message || e.reason || '未知异常'}`, 'error');
+});
 
 // 覆写 window.alert
 overrideAlert();

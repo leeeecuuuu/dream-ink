@@ -47,7 +47,6 @@ export function initDataLoader() {
       state.promptLib = await localFS.loadJSON('prompts.json', []);
       state.historyData = await localFS.loadJSON('history.json', []);
       const list = $('historyList');
-      if (list) list.innerHTML = '<div class="text-center text-outline text-xs mt-8">正在从本地加载...</div>';
       const enriched = await Promise.all(state.historyData.map(renderHistoryItem));
       state.historyData = enriched;
       bus.emit('historyData:change');
