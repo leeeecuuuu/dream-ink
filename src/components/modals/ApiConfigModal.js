@@ -149,6 +149,35 @@ export const ApiConfigModal = `
                     <div id="webdavStatus" class="text-[11px] text-on-surface-variant font-medium hidden"></div>
                 </div>
 
+                <!-- 云存储同步（Gitee 码云 - 推荐移动端） -->
+                <div class="space-y-3 pt-5 mt-5 border-t border-outline-variant">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[18px]">backup</span>
+                        <span class="text-sm font-bold text-on-surface">Gitee 码云备份 (推荐移动端)</span>
+                        <span id="giteeBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full border bg-success/10 text-success border-success/20">已配置</span>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant leading-relaxed">
+                        国内首选，原生支持跨域，无需代理即可在手机上同步配置和咒语书。
+                        <br><strong class="text-on-surface">设置方法：</strong> 登录 Gitee → 设置 → 安全设置 → <a href="https://gitee.com/personal_access_tokens" target="_blank" class="text-primary underline">私人令牌</a> → 生成新令牌 (勾选 gists 权限)
+                    </p>
+                    <div class="space-y-2">
+                        <input type="password" id="giteeToken" placeholder="Gitee 私人令牌 (Personal Access Token)" class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
+                        <input type="text" id="giteeGistId" placeholder="Gist ID (留空则自动创建)" class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <button id="giteeSaveBtn" class="flex items-center gap-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors">
+                            <span class="material-symbols-outlined text-[14px]">save</span> 保存并初始化
+                        </button>
+                        <button id="giteeUploadBtn" class="flex items-center gap-1 bg-primary text-white px-3 py-2 rounded-lg text-xs font-bold hover:brightness-110 transition-all">
+                            <span class="material-symbols-outlined text-[14px]">cloud_upload</span> 上传备份
+                        </button>
+                        <button id="giteeDownloadBtn" class="flex items-center gap-1 bg-success/10 hover:bg-success/20 text-success border border-success/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors">
+                            <span class="material-symbols-outlined text-[14px]">cloud_download</span> 恢复备份
+                        </button>
+                    </div>
+                    <div id="giteeStatus" class="text-[11px] text-on-surface-variant font-medium hidden"></div>
+                </div>
+
             </div>
             <div class="px-6 py-4 border-t border-outline-variant bg-surface-container text-right">
                 <button id="applyApiConfigBtn" class="bg-primary text-on-primary-container px-6 py-2 rounded-lg font-bold text-sm hover:brightness-110 transition-all">确认 / 关闭</button>

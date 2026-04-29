@@ -29,6 +29,7 @@ registerSW({ immediate: true });
 import { initFormPersistence } from './init/form-persistence.js';
 import { initDataLoader } from './init/data-loader.js';
 import { initWebDAV } from './init/webdav-sync.js';
+import { initGitee } from './init/gitee-sync.js';
 import { bus } from './utils/event-bus.js';
 import { injectModals } from './components/ModalManager.js';
 
@@ -62,6 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initFormPersistence();
   initDataLoader();
   initWebDAV();
+  initGitee();
+  initMobile();
 
   // ========== 历史详情操作 ==========
   $('hdDelBtn').onclick = () => {
