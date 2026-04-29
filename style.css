@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ========== BanavelAi Image - Obsidian Core (Kinetic) UI ========== */
 
 /* ---------- CSS 变量 / 主题系统 ---------- */

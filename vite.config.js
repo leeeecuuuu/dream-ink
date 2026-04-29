@@ -6,6 +6,8 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  // 配置相对基础路径，解决部署后资源 404 的问题
+  base: './',
   // 项目根目录即当前目录
   root: '.',
   // 开发服务器配置
