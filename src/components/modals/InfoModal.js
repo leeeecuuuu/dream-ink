@@ -63,6 +63,19 @@ export const InfoModal = `
                         <h4 class="font-bold text-on-surface text-base">最新动态</h4>
 
                         <div class="pb-4 border-b border-outline-variant/50">
+                            <p class="font-bold text-primary mb-1">2026-04-29</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">底层重构与云同步增强：让 DreamInk 更稳、更快、更懂手机。</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
+                                <li>☁️ <strong class="text-on-surface">Gitee 云同步上线</strong>：国内移动端首选同步方案，原生支持跨域，手机端也能一键备份/恢复提示词库和配置。</li>
+                                <li>⚡ <strong class="text-on-surface">架构模块化重构</strong>：代码彻底解耦，引入事件总线（Event Bus），系统响应更灵敏，告别卡顿。</li>
+                                <li>🖼️ <strong class="text-on-surface">画廊交互大改版</strong>：全新毛玻璃悬浮蒙层，桌面端“静默模式”与移动端“常驻模式”智能切换。</li>
+                                <li>🔍 <strong class="text-on-surface">高清缩略图算法</strong>：大幅提升封面生成的分辨率与质量，历史记录和咒语书从此告别模糊。</li>
+                                <li>🛡️ <strong class="text-on-surface">安全与容错增强</strong>：支持严格 CSP 策略；引入全局错误边界与加载骨架屏，运行更稳，减少闪烁。</li>
+                                <li>📶 <strong class="text-on-surface">离线模式 (PWA)</strong>：支持安装到桌面，无网络时也能正常查看历史和编辑咒语。</li>
+                            </ul>
+                        </div>
+
+                        <div class="pb-4 border-b border-outline-variant/50">
                             <p class="font-bold text-primary mb-1">2026-04-25</p>
                             <p class="text-[11px] text-on-surface-variant mb-2 italic">这次更新较大，主要解决了意外丢失数据的难题。</p>
                             <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
