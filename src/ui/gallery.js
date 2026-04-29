@@ -48,43 +48,42 @@ export function createGalleryItemDOM(src, sec, ratio, quality, index) {
     style: 'cursor: zoom-in;',
   });
 
+  const btnClass = 'p-1.5 text-white/80 hover:text-white hover:bg-white/20 active:bg-white/30 rounded-lg transition-all pointer-events-auto touch-manipulation';
+  
   // ===== 操作按钮 =====
   const zoomBtn = el('button', {
-    className: 'gallery-action-btn',
+    className: btnClass,
     title: '放大',
-  }, icon('zoom_in', 'text-[18px]'));
+  }, icon('zoom_in', 'text-[18px] md:text-[20px] drop-shadow-md'));
 
   const copyBtn = el('button', {
-    className: 'gallery-action-btn',
+    className: btnClass,
     title: '复制',
-  }, icon('content_copy', 'text-[18px]'));
+  }, icon('content_copy', 'text-[18px] md:text-[20px] drop-shadow-md'));
 
   const downBtn = el('button', {
-    className: 'gallery-action-btn',
+    className: btnClass,
     title: '保存',
-  }, icon('download', 'text-[18px]'));
+  }, icon('download', 'text-[18px] md:text-[20px] drop-shadow-md'));
 
-  // 删除按钮（新增功能）
+  // 删除按钮
   const delBtn = el('button', {
-    className: 'gallery-action-btn gallery-del-btn',
+    className: btnClass + ' hover:text-error hover:bg-error/20',
     title: '删除',
-  }, icon('delete', 'text-[18px]'));
+  }, icon('delete', 'text-[18px] md:text-[20px] drop-shadow-md'));
 
   const redrawBtn = el('button', {
-    className: 'gallery-redraw-btn',
-  }, icon('brush', 'text-[14px]'), ' 重绘');
+    className: 'ml-auto px-3 py-1.5 text-[11px] md:text-[12px] font-bold text-white bg-white/10 hover:bg-white/20 active:bg-white/30 border border-white/20 rounded-lg transition-all pointer-events-auto touch-manipulation flex items-center gap-1 backdrop-blur-md drop-shadow-sm',
+  }, icon('brush', 'text-[14px] md:text-[16px] drop-shadow-md'), ' 重绘');
 
-  // 工具面板 — 移动端通过 CSS 常驻显示，桌面端 hover 显示
+  // 工具面板
   const toolPanel = el('div', {
-    className: 'gallery-tool-panel glass-panel p-2 rounded-xl flex justify-between items-center gap-2 pointer-events-auto',
-  },
-    el('div', { className: 'flex gap-1' }, zoomBtn, copyBtn, downBtn, delBtn),
-    redrawBtn
-  );
+    className: 'flex items-center gap-0.5 md:gap-1 w-full',
+  }, zoomBtn, copyBtn, downBtn, delBtn, redrawBtn);
 
-  // 悬浮蒙层
+  // 悬浮蒙层 - 使用 gallery-overlay 并在 style.css 控制显隐
   const overlay = el('div', {
-    className: 'gallery-overlay absolute inset-0 bg-black/40 flex flex-col justify-end p-3 pointer-events-none transition-opacity duration-300',
+    className: 'gallery-overlay absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-2 md:p-3 pointer-events-none transition-all duration-300',
   }, toolPanel);
 
   // 耗时标签

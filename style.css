@@ -593,3 +593,23 @@ input[type="range"]::-webkit-slider-thumb:active {
 #lightbox .lightbox-hint-mobile {
     display: none;
 }
+
+/* --- 画廊悬浮蒙层适配 --- */
+@media (hover: hover) {
+    /* 桌面端：默认隐藏，hover 或 focus 触发，让图片显得非常纯净 */
+    .gallery-overlay {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    .gallery-item:hover .gallery-overlay {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+@media (hover: none) {
+    /* 移动端：常驻显示，但通过我们在 JS 中设置的渐变色保证美观，并且由于无 hover 所以不会隐藏 */
+    .gallery-overlay {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
