@@ -29,11 +29,11 @@ export function saveHistory(params, b64Img, refImages = [], presetId = null) {
     let thumbStr = originalImageSrc;
     try {
       const c = document.createElement('canvas');
-      const s = 150 / img.width;
-      c.width = 150;
+      const s = 400 / img.width;
+      c.width = 400;
       c.height = img.height * s;
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      thumbStr = c.toDataURL('image/jpeg', 0.4);
+      thumbStr = c.toDataURL('image/jpeg', 0.85);
     } catch (e) {
       console.warn('Canvas Taint, using original src for thumb');
     }

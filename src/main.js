@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('newPromptImg').onchange = e => {
     const file = e.target.files[0]; if (!file) return;
     const img = new Image();
-    img.onload = () => { const c = document.createElement('canvas'), s = 250 / img.width; c.width = 250; c.height = img.height * s; c.getContext('2d').drawImage(img, 0, 0, 250, c.height); state.pendingThumb = c.toDataURL('image/jpeg', 0.6); $('thumbStatus').style.display = 'block'; };
+    img.onload = () => { const c = document.createElement('canvas'), s = 400 / img.width; c.width = 400; c.height = img.height * s; c.getContext('2d').drawImage(img, 0, 0, 400, c.height); state.pendingThumb = c.toDataURL('image/jpeg', 0.85); $('thumbStatus').style.display = 'block'; };
     img.src = URL.createObjectURL(file);
   };
 
