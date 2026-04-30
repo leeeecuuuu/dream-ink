@@ -142,7 +142,12 @@ export async function executeGeneration(custom = {}) {
     const genOne = async () => {
       if (apiType === 'openai') {
         // ===== OpenAI 兼容请求 =====
-        const baseUrlForOpenAI = base.endsWith('/v1') ? base.replace(/\/$/, '') : base.replace(/\/$/, '') + '/v1';
+        // 智能处理 base URL：
+        // - 移除末尾斜杠
+        // - 如果已有 /v1 结尾则保留，否则追加 /v1
+        // 支持格式：https://api.example.com、https://api.example.com/v1、https://api.example.com/openai/v1 等
+        const cleanBase = base.replace(/\/+$/, ''); // 去掉末尾所有斜杠
+        const baseUrlForOpenAI = cleanBase.endsWith('/v1') ? cleanBase : `${cleanBase}/v1`;
         const endpoint = imgs.length ? '/images/edits' : '/images/generations';
         const url = `${baseUrlForOpenAI}${endpoint}`;
 

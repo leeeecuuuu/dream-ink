@@ -15,6 +15,7 @@ import { saveLib } from './ui/library.js';
 import { initLightbox } from './ui/lightbox.js';
 import { initModals } from './ui/modals.js';
 import { initMobile } from './ui/mobile.js';
+import './ui/preview.js'; // 注册参考图预览的事件监听
 import { initRatioDropdown } from './ui/ratio-dropdown.js';
 import { fetchModels } from './api/model-fetch.js';
 import { enqueueTask, enqueueMultiple, clearQueue, executeGeneration } from './core/generator.js';
@@ -167,7 +168,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ========== 主操作按钮绑定 ==========
   $('fetchModelsBtn').onclick = fetchModels;
-  $('runBtn').onclick = () => enqueueTask();
+  // 生成中点击 → 终止；空闲时点击 → 入队
+  $('runBtn').onclick = () => {
+    if (state.isGenerating) {
+      // 直接调用 executeGeneration 触发终止逻辑（内部检测 isGenerating 并 abort）
+      executeGeneration();
+    } else {
+      enqueueTask();
+    }
+  };
   
   const multiTaskBtn = $('multiTaskBtn');
   if (multiTaskBtn) multiTaskBtn.onclick = () => {
