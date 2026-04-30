@@ -1,62 +1,72 @@
+/**
+ * DreamInk 专属极致跨域代理 (Cloudflare Worker)
+ * 
+ * 部署保姆级教程：
+ * 1. 注册并登录 Cloudflare -> 左侧菜单选 Workers & Pages -> 创建应用程序 -> 创建 Worker
+ * 2. 随便起个名字（比如 dreamink-proxy），点击部署
+ * 3. 点击“编辑代码”，把这个文件里的代码全部粘贴进去，覆盖掉原有内容
+ * 4. 点击右上角“部署”保存
+ * 
+ * 🎉 大功告成！
+ * 
+ * 在 DreamInk 的【接口地址】里怎么填？
+ * 公式：https://你的worker地址/你要代理的真实API地址
+ * 例如原本你的 API 是：https://api.openai.com
+ * 现在填入：https://dreamink-proxy.你的账号.workers.dev/https://api.openai.com
+ * 
+ * 彻底告别浏览器的跨域报错！
+ */
+
 export default {
   async fetch(request, env) {
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS, PUT, DELETE, PROPFIND, MKCOL',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Depth, X-Target-Url',
-      'Access-Control-Expose-Headers': 'Content-Length, Content-Type',
-    };
-
-    // 1. 处理 OPTIONS 预检请求
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
+    const url = new URL(request.url);
+    
+    // 如果只访问根目录，给个提示
+    if (url.pathname === '/' || url.pathname === '') {
+      return new Response('✅ DreamInk CORS Proxy is running!\n\n用法: https://你的worker地址/https://目标API地址', { status: 200 });
     }
 
-    // 2. 获取目标 WebDAV 地址
-    // 前端会在请求头中通过 X-Target-Url 传递真实的 WebDAV 地址
-    const targetUrl = request.headers.get('X-Target-Url');
-
-    if (!targetUrl) {
-      return new Response('Missing X-Target-Url header. This proxy requires a target URL.', { 
-        status: 400, 
-        headers: corsHeaders 
-      });
+    // 提取目标 URL
+    let targetUrlStr = url.pathname.slice(1) + url.search;
+    if (!targetUrlStr.startsWith('http')) {
+      targetUrlStr = 'https://' + targetUrlStr;
     }
-
-    // 3. 构建代理请求
-    const proxyRequest = new Request(targetUrl, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body,
-      redirect: 'follow',
-    });
-
-    // 移除自定义头，防止上游服务器报错
-    proxyRequest.headers.delete('X-Target-Url');
-    // 如果存在 Origin，可以考虑移除或修改
-    proxyRequest.headers.delete('Origin');
-    proxyRequest.headers.delete('Referer');
 
     try {
-      // 4. 发送请求到真正的 WebDAV 服务器
-      const response = await fetch(proxyRequest);
-      const responseHeaders = new Headers(response.headers);
+      const targetUrl = new URL(targetUrlStr);
       
-      // 5. 将 CORS 允许头添加到响应中，以便前端可以读取
-      for (const [key, value] of Object.entries(corsHeaders)) {
-        responseHeaders.set(key, value);
+      // 构造新请求
+      const newRequest = new Request(targetUrl.toString(), new Request(request));
+      // 删除这两个头，防止目标服务器查户口
+      newRequest.headers.delete('origin');
+      newRequest.headers.delete('referer');
+
+      // 拦截浏览器的 OPTIONS 预检请求，直接放行
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': request.headers.get('Access-Control-Request-Headers') || '*',
+            'Access-Control-Max-Age': '86400',
+          }
+        });
       }
-      
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders,
-      });
-    } catch (error) {
-      return new Response(\`Proxy Error: \${error.message}\`, { 
-        status: 500, 
-        headers: corsHeaders 
-      });
+
+      // 获取目标 API 的真实响应
+      let response = await fetch(newRequest);
+      let newResponse = new Response(response.body, response);
+
+      // 给真实响应强行打上允许跨域的烙印
+      newResponse.headers.set('Access-Control-Allow-Origin', '*');
+      newResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      newResponse.headers.set('Access-Control-Allow-Headers', '*');
+
+      return newResponse;
+
+    } catch (e) {
+      return new Response(`DreamInk Proxy Error: ${e.message}`, { status: 500 });
     }
   }
 };

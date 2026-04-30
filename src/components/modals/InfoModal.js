@@ -63,6 +63,18 @@ export const InfoModal = `
                         <h4 class="font-bold text-on-surface text-base">最新动态</h4>
 
                         <div class="pb-4 border-b border-outline-variant/50">
+                            <p class="font-bold text-primary mb-1">2026-04-30</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">接口大扫除，全方位兼容市面上的各种代理，彻底告别报错！</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
+                                <li>🤖 <strong class="text-on-surface">全能的 GPT 代理兼容。</strong>不管你的代理用的是标准生图接口，还是只支持纯聊天的对话格式，系统新增的「智能瀑布式嗅探」都能把返回的图片揪出来，一网打尽！支持在设置里手动切换格式。</li>
+                                <li>🔗 <strong class="text-on-surface">地址再也不会填错了。</strong>不管你在接口地址最后多加了几个斜杠，或者手抖加了个 <code class="bg-surface-container px-1 rounded">/v1</code>，系统都能自动帮你修剪成标准格式，向 <code class="bg-surface-container px-1 rounded">404</code> 错误说拜拜。</li>
+                                <li>🔍 <strong class="text-on-surface">选模型不用再大海捞针。</strong>点拉取模型后，系统会自动把对应引擎的模型（比如名字带 gemini、gpt 或 mj 的）一键置顶排在最前面，选起来超级省事。</li>
+                                <li>⌨️ <strong class="text-on-surface">敲敲键盘就能生图。</strong>新增了大家期盼已久的 <code class="bg-surface-container px-1 rounded">Ctrl + Enter</code> 快捷键，写完提示词不用动鼠标，回车直接发车！</li>
+                                <li>🛑 <strong class="text-on-surface">真正的“一键刹车”。</strong>彻底修好了终止逻辑。现在点终止，不仅当前的图会停下，后面排队的任务也会一并清空，说停就停，绝不拖泥带水。</li>
+                            </ul>
+                        </div>
+
+                        <div class="pb-4 border-b border-outline-variant/50">
                             <p class="font-bold text-primary mb-1">2026-04-29</p>
                             <p class="text-[11px] text-on-surface-variant mb-2 italic">底层大手术，同步更丝滑：主要是让手机端和电脑端都更好看、好用。</p>
                             <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
