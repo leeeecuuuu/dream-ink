@@ -27,6 +27,9 @@
             <button id="infoBtn" title="指南" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
                 <span class="material-symbols-outlined text-[20px]">explore</span>
             </button>
+            <button id="syncConfigBtn" title="数据同步与存储" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
+                <span class="material-symbols-outlined text-[20px]">cloud_sync</span>
+            </button>
             <button id="apiConfigBtn" title="API 配置" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
                 <span class="material-symbols-outlined text-[20px]">settings</span>
             </button>
@@ -63,19 +66,31 @@
 
                 <!-- Prompt Input -->
                 <div class="space-y-2 relative">
-                    <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画面描述</label>
+                    <div class="flex items-center justify-between">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画面描述</label>
+                        <label id="rewriteGuardLabel" class="hidden flex items-center gap-1.5 cursor-pointer group" title="开启后在请求前加入强制指令，防止 Responses API 改写你的提示词">
+                            <span class="text-[10px] text-on-surface-variant group-hover:text-on-surface transition-colors">防改写</span>
+                            <div class="relative">
+                                <input type="checkbox" id="rewriteGuardToggle" class="sr-only peer">
+                                <div class="w-8 h-4 bg-surface-container-high rounded-full peer peer-checked:bg-primary transition-colors border border-outline-variant peer-checked:border-primary"></div>
+                                <div class="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+                            </div>
+                        </label>
+                    </div>
                     <textarea id="promptInput" class="w-full h-40 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary focus:border-primary resize-none shadow-sm transition-shadow text-[13px]" placeholder="请输入你想要生成的画面描述..."></textarea>
                 </div>
                 
                 <!-- Parameters -->
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 gap-3 mb-4">
                     <div class="space-y-2 relative" id="ratioWidget">
-                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画幅尺寸</label>
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant flex justify-between items-center">
+                            画幅尺寸
+                        </label>
                         
-                        <!-- 假下拉按钮 -->
-                        <div id="ratioSelectBtn" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer flex justify-between items-center hover:bg-surface-container transition-colors">
+                        <!-- 自定义选择器按钮 -->
+                        <div id="ratioSelectBtn" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 cursor-pointer flex justify-between items-center hover:bg-surface-container-low transition-colors">
                             <span id="ratioSelectText" class="font-mono">1024 x 1024 (1:1 高清)</span>
-                            <span class="material-symbols-outlined text-[16px] text-on-surface-variant">unfold_more</span>
+                            <span class="material-symbols-outlined text-[16px] text-on-surface-variant pointer-events-none">expand_more</span>
                         </div>
                         <input type="hidden" id="ratioSelect" value="1024x1024">
 
@@ -97,6 +112,9 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-4">
                     <div class="space-y-2">
                         <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">图像质量</label>
                         <select id="qualitySelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
@@ -105,10 +123,17 @@
                             <option value="ultra">极致画质</option>
                         </select>
                     </div>
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">内容审核</label>
+                        <select id="moderationSelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                            <option value="auto" selected>自动 (Auto)</option>
+                            <option value="low">低度 (Low)</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Output Format & Background -->
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-2 gap-3 mb-6">
                     <div class="space-y-2">
                         <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">输出格式</label>
                         <select id="outputFormat" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
@@ -270,6 +295,39 @@
 
     </main>
 
+
+    <!-- Mask Editor Modal -->
+    <div id="maskEditorModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] hidden flex-col">
+        <div class="flex justify-between items-center px-4 py-3 bg-surface border-b border-outline-variant flex-shrink-0">
+            <h3 class="text-on-surface font-bold text-sm tracking-wide">蒙版涂抹编辑</h3>
+            <div class="flex gap-2">
+                <button id="maskSaveBtn" class="bg-primary text-on-primary px-4 py-1.5 rounded-lg text-xs font-bold hover:brightness-110 shadow">保存并应用</button>
+                <button id="maskCloseBtn" class="text-on-surface-variant hover:text-error transition-colors p-1"><span class="material-symbols-outlined">close</span></button>
+            </div>
+        </div>
+        <div class="bg-surface-container-low p-2 flex gap-4 justify-center items-center border-b border-outline-variant/30 text-xs flex-shrink-0">
+            <label class="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="maskMode" value="draw" checked class="accent-primary"> 画笔
+            </label>
+            <label class="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="maskMode" value="erase" class="accent-primary"> 橡皮擦
+            </label>
+            <div class="flex items-center gap-2 ml-4">
+                <span class="text-on-surface-variant font-medium">笔触大小:</span>
+                <input type="range" id="maskBrushSize" min="5" max="200" value="30" class="w-32 accent-primary">
+                <span id="maskBrushSizeVal" class="text-on-surface font-mono w-10 text-right">30px</span>
+            </div>
+            <button id="maskClearBtn" class="ml-4 text-error hover:bg-error/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
+                <span class="material-symbols-outlined text-[14px]">delete</span>清空
+            </button>
+        </div>
+        <div class="flex-1 overflow-auto relative flex justify-center items-center p-4 custom-scrollbar bg-black/20" id="maskCanvasContainer">
+            <div id="maskCanvasWrapper" class="relative shadow-2xl rounded-sm" style="cursor: crosshair; display: inline-block;">
+                <canvas id="maskImageCanvas" style="display: block; width: 100%; height: 100%;"></canvas>
+                <canvas id="maskDrawCanvas" style="display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.6;"></canvas>
+            </div>
+        </div>
+    </div>
 
     <!-- Lightbox -->
     <div id="lightbox" class="relative">

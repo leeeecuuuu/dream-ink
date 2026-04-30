@@ -78,6 +78,11 @@ export function initDataLoader() {
             state.selectedFiles.push(new File([blob], fname, { type: blob.type }));
           } catch (e) { console.warn('恢复垫图失败:', fname, e); }
         }
+        // 恢复蒙版
+        const savedMasks = await localFS.loadJSON('current_masks.json', []);
+        if (savedMasks.length) {
+          state.selectedMasks = savedMasks;
+        }
         if (state.selectedFiles.length) bus.emit('selectedFiles:change');
       }
       await localFS.loadConfig(null, () => bus.emit('preview:update'));
@@ -89,7 +94,7 @@ export function initDataLoader() {
         bus.emit('historyData:change');
       }).catch(() => bus.emit('historyData:change'));
       
-      idb.get('nanscript_current_refs').then(d => {
+      idb.get('nanscript_current_refs').then(async d => {
         if (Array.isArray(d) && d.length) {
           d.forEach((src, idx) => {
             if (src.startsWith('data:')) {
@@ -97,6 +102,11 @@ export function initDataLoader() {
               if (blob) state.selectedFiles.push(new File([blob], `ref${idx}.png`, { type: blob.type }));
             }
           });
+          // 恢复蒙版
+          const savedMasks = await idb.get('nanscript_current_masks').catch(() => null);
+          if (Array.isArray(savedMasks) && savedMasks.length) {
+            state.selectedMasks = savedMasks;
+          }
           bus.emit('selectedFiles:change');
         }
       }).catch(() => {});

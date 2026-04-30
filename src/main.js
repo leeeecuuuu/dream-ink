@@ -10,13 +10,14 @@ import { $, base64ToBlob, urlToFile } from './utils/helpers.js';
 import { state } from './state/app-state.js';
 import { showToast, overrideAlert } from './ui/toast.js';
 import { initTheme } from './ui/theme.js';
-import { initEngine } from './ui/engine.js';
+import { initEngine, syncModelInput, updatePreview } from './ui/engine.js';
 import { saveLib } from './ui/library.js';
 import { initLightbox } from './ui/lightbox.js';
 import { initModals } from './ui/modals.js';
 import { initMobile } from './ui/mobile.js';
 import './ui/preview.js'; // 注册参考图预览的事件监听
 import { initRatioDropdown } from './ui/ratio-dropdown.js';
+import { initMaskEditor } from './ui/mask-editor.js';
 import { fetchModels } from './api/model-fetch.js';
 import { enqueueTask, enqueueMultiple, clearQueue, executeGeneration } from './core/generator.js';
 import { idb } from './storage/idb.js';
@@ -33,6 +34,7 @@ import { initWebDAV } from './init/webdav-sync.js';
 import { initGitee } from './init/gitee-sync.js';
 import { bus } from './utils/event-bus.js';
 import { injectModals } from './components/ModalManager.js';
+import { localFS } from './storage/local-fs.js';
 
 // 全局错误边界 (Error Boundary)
 window.addEventListener('error', (e) => {
@@ -59,9 +61,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initRatioDropdown();
   initEngine();
+  initMaskEditor();
 
   // 2. 表单与持久化数据加载
   initFormPersistence();
+  // 表单恢复后重新同步引擎模型（确保读取到已保存的模型名，而非默认值）
+  syncModelInput();
+  updatePreview();
   initDataLoader();
   initWebDAV();
   initGitee();
@@ -116,11 +122,15 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const _hdApplyBtn = $('hdApplyBtn');
-  if (_hdApplyBtn) _hdApplyBtn.onclick = () => {
+  if (_hdApplyBtn) _hdApplyBtn.onclick = async () => {
     const item = state.currentDetailMode === 'history'
       ? state.historyData[state.currentHistoryIdx]
       : state.promptLib[state.curFolder].prompts[state.currentHistoryIdx];
     if (!item) return;
+
+    _hdApplyBtn.disabled = true;
+    _hdApplyBtn.textContent = '导入中...';
+
     $('promptInput').value = item.content || (item.prompt === '纯图生成' ? '' : item.prompt) || '';
     if (item.aspectRatio) $('ratioSelect').value = item.aspectRatio;
     if (item.quality) $('qualitySelect').value = item.quality;
@@ -131,19 +141,57 @@ document.addEventListener('DOMContentLoaded', () => {
       Array.from(s?.options || []).some(o => o.value === item.model) && s?.style.display !== 'none'
         ? s.value = item.model : inp.value = item.model;
     }
+
     state.selectedFiles = [];
-    if (item.refImages && item.refImages.length) {
-      item.refImages.forEach((src, idx) => {
-        if (src.startsWith('data:')) {
-          const blob = base64ToBlob(src);
-          if (blob) state.selectedFiles.push(new File([blob], `ref${idx}.png`, { type: blob.type }));
+    state.selectedMasks = [];
+
+    if (localFS.isActive() && Array.isArray(item.refFiles) && item.refFiles.length) {
+      for (let i = 0; i < item.refFiles.length; i++) {
+        try {
+          const url = await localFS.getImageURL(item.refFiles[i], 'refs');
+          const blob = await (await fetch(url)).blob();
+          state.selectedFiles.push(new File([blob], `ref${i}.png`, { type: blob.type }));
+        } catch(e) { console.warn(e); }
+      }
+      if (Array.isArray(item.maskFiles)) {
+        for (let i = 0; i < item.maskFiles.length; i++) {
+           if (!item.maskFiles[i]) {
+               state.selectedMasks.push(null);
+               continue;
+           }
+           try {
+             const url = await localFS.getImageURL(item.maskFiles[i], 'refs');
+             const blob = await (await fetch(url)).blob();
+             const b64 = await new Promise((resolve) => {
+               const reader = new FileReader();
+               reader.onload = () => resolve(reader.result);
+               reader.readAsDataURL(blob);
+             });
+             state.selectedMasks.push(b64);
+           } catch(e) { state.selectedMasks.push(null); }
         }
-      });
+      }
+    } else {
+      if (item.refImages && item.refImages.length) {
+        item.refImages.forEach((src, idx) => {
+          if (src.startsWith('data:')) {
+            const blob = base64ToBlob(src);
+            if (blob) state.selectedFiles.push(new File([blob], `ref${idx}.png`, { type: blob.type }));
+          }
+        });
+      }
+      if (Array.isArray(item.maskImages)) {
+        state.selectedMasks = [...item.maskImages];
+      }
     }
+
     bus.emit('selectedFiles:change'); bus.emit('preview:update');
     $('historyDetailModal').style.display = 'none';
     if (state.currentDetailMode === 'library') $('libraryModal').style.display = 'none';
     showToast('参数与垫图已导入！');
+    
+    _hdApplyBtn.disabled = false;
+    _hdApplyBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">file_download</span> 导入参数与垫图';
   };
 
   // ========== 垫图上传与拖拽 ==========
@@ -287,17 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
     r.readAsText(file);
   };
 
-  // ========== 重绘操作 ==========
-  $('confirmRedrawBtn').onclick = async () => {
-    const src = $('redrawSourceThumb').src, p = $('redrawPrompt').value.trim();
-    if (!p) return showToast('请输入修改建议', 'error');
-    const btn = $('confirmRedrawBtn'); btn.disabled = true; btn.textContent = '重绘中...';
-    try {
-      state.selectedFiles = [await urlToFile(src, 'redraw.png', 'image/png')]; bus.emit('selectedFiles:change');
-      $('promptInput').value = p; $('redrawModal').style.display = 'none'; executeGeneration();
-    } catch { showToast('图片加载失败', 'error'); }
-    finally { btn.disabled = false; btn.textContent = '确认重绘'; }
-  };
 
   // 终态更新
   bus.emit('preview:update');

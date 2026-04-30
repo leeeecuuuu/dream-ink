@@ -9,7 +9,7 @@
  *  - 移动端操作栏常驻显示（替代 hover 逻辑）
  */
 
-import { $ } from '../utils/helpers.js';
+import { $, base64ToBlob } from '../utils/helpers.js';
 import { el, icon } from '../utils/dom.js';
 import { state } from '../state/app-state.js';
 import { localFS } from '../storage/local-fs.js';
@@ -112,11 +112,16 @@ export function createGalleryItemDOM(src, sec, ratio, quality, index) {
       return;
     }
     try {
-      const blob = await (await fetch(src)).blob();
+      let blob;
+      if (src.startsWith('data:')) {
+        blob = base64ToBlob(src);
+      } else {
+        blob = await (await fetch(src)).blob();
+      }
       await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
       showToast('已复制 📋');
     } catch (e) {
-      showToast('复制失败', 'error');
+      showToast('复制失败: ' + e.message, 'error');
     }
   };
 
@@ -151,9 +156,50 @@ export function createGalleryItemDOM(src, sec, ratio, quality, index) {
   };
 
   redrawBtn.onclick = () => {
-    $('redrawSourceThumb').src = src;
-    $('redrawPrompt').value = '';
-    $('redrawModal').style.display = 'flex';
+    // 自动将画幅尺寸设置为参考图尺寸
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const ratioStr = `${w}x${h}`;
+      const ratioSel = $('ratioSelect');
+      const customW = $('customWidth');
+      const customH = $('customHeight');
+      
+      let isPreset = false;
+      const drop = $('ratioDropdown');
+      if (drop) {
+        drop.querySelectorAll('.ratio-opt').forEach(opt => {
+          if (opt.dataset.val === ratioStr) isPreset = true;
+        });
+      }
+
+      if (ratioSel) {
+        if (isPreset) {
+          ratioSel.value = ratioStr;
+          if (window._updateRatioUI) window._updateRatioUI(ratioStr);
+        } else {
+          ratioSel.value = 'custom';
+          if (customW) customW.value = w;
+          if (customH) customH.value = h;
+          if (window._updateRatioUI) window._updateRatioUI('custom');
+        }
+        // 触发持久化保存与底部预览文本更新
+        if (ratioSel.onchange) ratioSel.onchange({ target: ratioSel });
+        if (customW && customW.onchange) customW.onchange({ target: customW });
+        if (customH && customH.onchange) customH.onchange({ target: customH });
+      }
+      showToast(`已将生成画幅自动设为原图尺寸: ${w}x${h}`);
+    };
+    img.src = src;
+
+    // 直接用 src (data: URL) 打开蒙版编辑器，无需额外转换
+    state.selectedMasks = [];
+    if (window._openMaskEditor) {
+      window._openMaskEditor(src, 0, true /* fromGallery */);
+    } else {
+      showToast('蒙版编辑器未初始化', 'error');
+    }
   };
 
   return container;

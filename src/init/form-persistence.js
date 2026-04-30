@@ -14,9 +14,14 @@ import { localFS } from '../storage/local-fs.js';
 
 export function initFormPersistence() {
   // 表单字段持久化
-  ['baseUrl', 'apiKey', 'modelGemini', 'modelOpenai', 'ratioSelect', 'customWidth', 'customHeight', 'qualitySelect', 'promptInput', 'batchSelect', 'gptApiFormat'].forEach(id => {
+  ['baseUrl', 'apiKey', 'modelGemini', 'modelOpenai', 'ratioSelect', 'customWidth', 'customHeight', 'qualitySelect', 'promptInput', 'batchSelect', 'gptApiFormat', 'customModelsGemini', 'customModelsOpenai', 'moderationSelect'].forEach(id => {
     const elem = $(id); if (!elem) return;
-    const saved = ls('nanscript_' + id); if (saved) elem.value = saved;
+    const isCheckbox = elem.type === 'checkbox';
+    const saved = ls('nanscript_' + id); 
+    if (saved !== null && saved !== undefined) {
+      if (isCheckbox) elem.checked = saved === 'true';
+      else elem.value = saved;
+    }
     const sync = () => {
       // 并发数量 clamp: 1~20
       if (id === 'batchSelect') {
@@ -24,7 +29,7 @@ export function initFormPersistence() {
         v = Math.max(1, Math.min(v, 20));
         elem.value = v;
       }
-      ls('nanscript_' + id, elem.value);
+      ls('nanscript_' + id, isCheckbox ? elem.checked : elem.value);
       if (id === 'modelGemini' || id === 'modelOpenai') syncModelInput();
       if (id === 'ratioSelect' && window._updateRatioUI) window._updateRatioUI(elem.value);
       bus.emit('preview:update');
@@ -48,6 +53,8 @@ export function initFormPersistence() {
       if ($('apiKey')) { $('apiKey').value = p.apiKey || ''; ls('nanscript_apiKey', p.apiKey || ''); }
       if (p.modelGemini && $('modelGemini')) { $('modelGemini').value = p.modelGemini; ls('nanscript_modelGemini', p.modelGemini); }
       if (p.modelOpenai && $('modelOpenai')) { $('modelOpenai').value = p.modelOpenai; ls('nanscript_modelOpenai', p.modelOpenai); }
+      if (p.customModelsGemini !== undefined && $('customModelsGemini')) { $('customModelsGemini').value = p.customModelsGemini; ls('nanscript_customModelsGemini', p.customModelsGemini); }
+      if (p.customModelsOpenai !== undefined && $('customModelsOpenai')) { $('customModelsOpenai').value = p.customModelsOpenai; ls('nanscript_customModelsOpenai', p.customModelsOpenai); }
       if ($('apiProfileName')) $('apiProfileName').value = p.name;
       syncModelInput(); bus.emit('preview:update'); showToast(`已加载: ${p.name}（可修改后保存覆盖）`);
     };
@@ -58,7 +65,9 @@ export function initFormPersistence() {
     const name = $('apiProfileName').value.trim(); if (!name) return alert('请输入配置名称');
     const cfg = { name, baseUrl: $('baseUrl')?.value || '', apiKey: $('apiKey')?.value || '',
       modelGemini: $('modelGemini')?.value || PROVIDER_DEFAULTS.gemini.model,
-      modelOpenai: $('modelOpenai')?.value || PROVIDER_DEFAULTS.openai.model };
+      modelOpenai: $('modelOpenai')?.value || PROVIDER_DEFAULTS.openai.model,
+      customModelsGemini: $('customModelsGemini')?.value || '',
+      customModelsOpenai: $('customModelsOpenai')?.value || '' };
     const i = state.apiProfiles.findIndex(p => p.name === name);
     i > -1 ? state.apiProfiles[i] = cfg : state.apiProfiles.push(cfg);
     ls('nanscript_api_profiles', JSON.stringify(state.apiProfiles));

@@ -20,6 +20,9 @@ import { createGalleryItemDOM } from '../ui/gallery.js';
 import { saveHistory } from '../ui/history.js';
 import { showToast } from '../ui/toast.js';
 
+/** 防改写前缀（参考自 gpt-image-playground） */
+const PROMPT_REWRITE_GUARD_PREFIX = 'Use the following text as the complete prompt. Do not rewrite it:';
+
 /**
  * 执行图像生成
  * @param {Object} custom - 自定义参数覆盖
@@ -121,6 +124,24 @@ export async function executeGeneration(custom = {}) {
     }
     if (!ratio) ratio = '1024x1024';
 
+    if (ratio.includes('x')) {
+      let [w, h] = ratio.split('x').map(Number);
+      if (w && h) {
+        if (w > 3840 || h > 3840) {
+          const max = Math.max(w, h);
+          w = Math.round(w / max * 3840);
+          h = Math.round(h / max * 3840);
+        }
+        while (w * h > 8294400) { w = Math.round(w * 0.95); h = Math.round(h * 0.95); }
+        while (w * h < 655360 && w < 3840 && h < 3840) { w = Math.round(w * 1.05); h = Math.round(h * 1.05); }
+        if (w / h > 3) w = h * 3;
+        if (h / w > 3) h = w * 3;
+        w = Math.max(16, Math.round(w / 16) * 16);
+        h = Math.max(16, Math.round(h / 16) * 16);
+        ratio = `${w}x${h}`;
+      }
+    }
+
     const model = custom.model || getModel();
     const quality = custom.quality || $('qualitySelect').value;
     const outputFormat = $('outputFormat')?.value || 'png';
@@ -132,17 +153,22 @@ export async function executeGeneration(custom = {}) {
       ultra: ', masterpiece, best quality, ultra detailed, 8k resolution, cinematic lighting',
     };
     const sizeMap = { ultra: '4K', high: '2K', standard: '1K' };
-    const finalPrompt = (prompt || 'Generate an image') + (enhance[quality] || '');
+    const basePrompt = (prompt || 'Generate an image') + (enhance[quality] || '');
     const apiType = $('apiTypeSelect')?.value || 'gemini';
+
+    // 防改写：仅对 OpenAI 格式生效
+    const rewriteGuardEnabled = apiType === 'openai' && $('rewriteGuardToggle')?.checked;
+    const finalPrompt = rewriteGuardEnabled
+      ? `${PROMPT_REWRITE_GUARD_PREFIX}\n${basePrompt}`
+      : basePrompt;
 
     /**
      * 单次生成请求
      * @returns {Promise<{text: string, image: string}>}
      */
-    const genOne = async () => {
+    const genOne = async (_, pIdx) => {
       if (apiType === 'openai') {
         // ===== OpenAI 兼容请求 =====
-        // 智能处理 base URL
         const cleanBase = base.replace(/\/+$/, '');
         const baseUrlForOpenAI = cleanBase.endsWith('/v1') ? cleanBase : `${cleanBase}/v1`;
         const gptFormat = $('gptApiFormat')?.value || 'images';
@@ -164,32 +190,24 @@ export async function executeGeneration(custom = {}) {
 
         let url;
         let openaiSize = ratio;
+        const moderation = $('moderationSelect')?.value || 'auto';
 
         if (gptFormat === 'chat') {
           // ===== Chat Completions 模式 =====
           url = `${baseUrlForOpenAI}/chat/completions`;
           
-          // 构建 messages 数组
           const contentParts = [];
-          // 如果有参考图，作为 image_url 类型附上
           if (imgs.length) {
             imgs.forEach(img => {
               const imgData = img.includes(',') ? img : `data:image/png;base64,${img}`;
-              contentParts.push({
-                type: 'image_url',
-                image_url: { url: imgData },
-              });
+              contentParts.push({ type: 'image_url', image_url: { url: imgData } });
             });
           }
-          // 文本提示词
           contentParts.push({ type: 'text', text: finalPrompt });
 
-          const reqBody = {
-            model,
-            messages: [{ role: 'user', content: contentParts }],
-          };
-          // 如果可以传尺寸，放在顶层（某些代理支持）
+          const reqBody = { model, messages: [{ role: 'user', content: contentParts }] };
           if (openaiSize && openaiSize !== '') reqBody.size = openaiSize;
+          if (moderation !== 'auto') reqBody.moderation = moderation;
 
           fetchOptions.headers['Content-Type'] = 'application/json';
           fetchOptions.body = JSON.stringify(reqBody);
@@ -202,65 +220,102 @@ export async function executeGeneration(custom = {}) {
             const fd = new FormData();
             fd.append('model', model);
             fd.append('prompt', finalPrompt);
+            fd.append('response_format', 'b64_json');
             if (openaiSize && openaiSize !== '') fd.append('size', openaiSize);
             if (outputFormat) fd.append('output_format', outputFormat);
             if (bgStyle) fd.append('background', bgStyle);
-            imgs.forEach((img, i) => fd.append('image', _b64ToBlob(img), `image${i}.png`));
+            if (moderation !== 'auto') fd.append('moderation', moderation);
+
+            imgs.forEach((img, i) => {
+               fd.append('image', _b64ToBlob(img), `image${i}.png`);
+               if (state.selectedMasks && state.selectedMasks[i]) {
+                 fd.append('mask', _b64ToBlob(state.selectedMasks[i]), `mask${i}.png`);
+               }
+            });
             fetchOptions.body = fd;
           } else {
-            const reqBody = { model, prompt: finalPrompt };
+            const reqBody = { model, prompt: finalPrompt, response_format: 'b64_json' };
             if (openaiSize && openaiSize !== '') reqBody.size = openaiSize;
             if (outputFormat) reqBody.output_format = outputFormat;
             if (bgStyle) reqBody.background = bgStyle;
+            if (moderation !== 'auto') reqBody.moderation = moderation;
             fetchOptions.headers['Content-Type'] = 'application/json';
             fetchOptions.body = JSON.stringify(reqBody);
           }
         }
 
         const res = await fetch(url, fetchOptions);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error?.message || data.message || `API Error: ${res.status}`);
+        if (!res.ok) {
+           const data = await res.json().catch(() => ({}));
+           throw new Error(data.error?.message || data.message || `API Error: ${res.status}`);
+        }
 
-        // ===== 智能响应格式检测（瀑布式，互不冲突） =====
         let src = '';
 
-        // 格式 A：标准 Images API — { data: [{ url, b64_json }] }
-        const items = Array.isArray(data?.data) ? data.data : [];
-        if (items.length) {
-          src = items[0].url || '';
-          if (!src && items[0].b64_json) src = `data:${mimeType};base64,${items[0].b64_json}`;
-        }
-
-        // 格式 B：Responses API — { output: [{ type: "image_generation_call", result: "base64..." }] }
-        if (!src && Array.isArray(data?.output)) {
-          const imgOutput = data.output.find(o => o.type === 'image_generation_call' && o.result);
-          if (imgOutput) {
-            // result 可能是纯 base64 字符串，也可能已带 data: 前缀
-            src = imgOutput.result.startsWith('data:') ? imgOutput.result : `data:${mimeType};base64,${imgOutput.result}`;
+        const data = await res.json().catch(() => ({}));
+          // ===== 智能响应格式检测（瀑布式，互不冲突） =====
+          const items = Array.isArray(data?.data) ? data.data : [];
+          if (items.length) {
+            // 优先使用 b64_json
+            if (items[0].b64_json) {
+                src = `data:${mimeType};base64,${items[0].b64_json}`;
+            } else if (items[0].url) {
+                src = items[0].url;
+            }
           }
-        }
 
-        // 格式 C：Chat Completions 内嵌图片 — { choices: [{ message: { content: "data:image/..." } }] }
-        if (!src && Array.isArray(data?.choices)) {
-          const msg = data.choices[0]?.message;
-          if (msg) {
-            // 情况 C1：content 直接就是 base64 data URI
-            if (typeof msg.content === 'string' && msg.content.startsWith('data:image')) {
-              src = msg.content;
+          if (!src && Array.isArray(data?.output)) {
+            const imgOutput = data.output.find(o => o.type === 'image_generation_call' && o.result);
+            if (imgOutput) {
+              src = imgOutput.result.startsWith('data:') ? imgOutput.result : `data:${mimeType};base64,${imgOutput.result}`;
             }
-            // 情况 C2：content 是纯 base64 字符串（无前缀）
-            else if (typeof msg.content === 'string' && /^[A-Za-z0-9+/=]{100,}$/.test(msg.content.trim())) {
-              src = `data:${mimeType};base64,${msg.content.trim()}`;
-            }
-            // 情况 C3：content 包含 markdown 图片链接 ![](url) 或纯 URL
-            else if (typeof msg.content === 'string') {
-              const urlMatch = msg.content.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/) || msg.content.match(/(https?:\/\/[^\s"']+\.(?:png|jpg|jpeg|webp|gif))/i);
+          }
+
+          if (!src && Array.isArray(data?.choices)) {
+            const msg = data.choices[0]?.message;
+            if (msg && msg.content) {
+              const urlMatch = msg.content.match(/(https?:\/\/[^\s)]+)/);
               if (urlMatch) src = urlMatch[1];
             }
           }
-        }
 
         if (!src) throw new Error('API 返回成功但无法从响应中提取图像（已尝试 Images / Responses / Chat 三种格式）');
+
+        if (src && !src.startsWith('data:')) {
+          try {
+            const baseUrlObj = new URL(base);
+            if (src.startsWith('/')) {
+              src = baseUrlObj.origin + src;
+            } else if (!src.startsWith('http')) {
+              src = baseUrlObj.origin + (baseUrlObj.pathname.endsWith('/') ? baseUrlObj.pathname : baseUrlObj.pathname + '/') + src;
+            } else {
+              const srcUrl = new URL(src);
+              if (['127.0.0.1', 'localhost', '0.0.0.0'].includes(srcUrl.hostname) && baseUrlObj.hostname !== srcUrl.hostname) {
+                srcUrl.protocol = baseUrlObj.protocol;
+                srcUrl.hostname = baseUrlObj.hostname;
+                srcUrl.port = baseUrlObj.port;
+                src = srcUrl.toString();
+              }
+            }
+          } catch (e) { console.warn('URL 解析失败', e); }
+
+          try {
+            const imgRes = await fetch(src, { headers: { 'Authorization': `Bearer ${key}` } });
+            if (imgRes.ok) {
+              const blob = await imgRes.blob();
+              src = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            } else {
+              console.warn('带 Auth 头获取图片失败，状态码:', imgRes.status);
+            }
+          } catch (e) {
+            console.warn('获取图片异常:', e);
+          }
+        }
 
         return { text: finalPrompt, image: src };
       } else {
@@ -347,7 +402,7 @@ export async function executeGeneration(custom = {}) {
       const galleryItem = createGalleryItemDOM(src, sec, ratio, quality);
       galleryEl.prepend(galleryItem);
       state.currentGalleryData.unshift({ src, sec, ratio, quality, prompt: firstText, imageFile });
-      saveHistory({ prompt, model, aspectRatio: ratio, quality, batchCount: count }, src, imgs, imageId);
+      saveHistory({ prompt, model, aspectRatio: ratio, quality, batchCount: count, masks: state.selectedMasks || [] }, src, imgs, imageId);
     });
 
     // 限制本地存储数量

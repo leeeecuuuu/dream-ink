@@ -36,6 +36,9 @@ export const state = {
   /** 用户选择的垫图文件列表 */
   selectedFiles: [],
 
+  /** 垫图对应的蒙版（PNG data URL 字符串数组，与 selectedFiles 下标对齐） */
+  selectedMasks: [],
+
   /** 咒语书数据 */
   promptLib: [],
 

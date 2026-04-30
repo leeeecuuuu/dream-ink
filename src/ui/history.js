@@ -68,11 +68,27 @@ export function saveHistory(params, b64Img, refImages = [], presetId = null) {
         }
       }
 
+      const maskFiles = [];
+      if (Array.isArray(params.masks) && params.masks.length) {
+        for (let i = 0; i < params.masks.length; i++) {
+          if (!params.masks[i]) {
+            maskFiles.push(null);
+            continue;
+          }
+          const maskFname = `${id}_mask${i}.png`;
+          try {
+            await localFS.saveImage(maskFname, params.masks[i], 'refs');
+            maskFiles.push(maskFname);
+          } catch (e) { console.warn('写入蒙版失败', e); maskFiles.push(null); }
+        }
+      }
+
       state.historyData.unshift({
         id, date, prompt: params.prompt || '纯图生成', model: params.model,
         aspectRatio: params.aspectRatio, quality: params.quality,
         batchCount: params.batchCount, apiType: $('apiTypeSelect')?.value || 'gemini',
         imageFile, thumbFile, _thumbSrc: thumb, refFiles, refImages: [],
+        maskFiles, maskImages: []
       });
 
       if (state.historyData.length > 100) state.historyData = state.historyData.slice(0, 100);
@@ -84,6 +100,7 @@ export function saveHistory(params, b64Img, refImages = [], presetId = null) {
         aspectRatio: params.aspectRatio, quality: params.quality,
         batchCount: params.batchCount, apiType: $('apiTypeSelect')?.value || 'gemini',
         thumb, fullImage: originalImageSrc, refImages,
+        maskImages: params.masks || []
       });
 
       if (state.historyData.length > 100) state.historyData = state.historyData.slice(0, 100);
@@ -241,10 +258,12 @@ export async function showHistoryDetail(item, idx, mode = 'history') {
   const refList = $('hdRefImages');
   const hasRefFiles = localFS.isActive() && Array.isArray(item.refFiles) && item.refFiles.length;
   const hasRefImages = Array.isArray(item.refImages) && item.refImages.length;
+  const hasMaskFiles = localFS.isActive() && Array.isArray(item.maskFiles) && item.maskFiles.some(m => m);
+  const hasMaskImages = Array.isArray(item.maskImages) && item.maskImages.some(m => m);
 
   const refSrcs = [];
 
-  if (hasRefFiles || hasRefImages) {
+  if (hasRefFiles || hasRefImages || hasMaskFiles || hasMaskImages) {
     refGroup.style.display = 'block';
     clearChildren(refList);
 
@@ -258,11 +277,33 @@ export async function showHistoryDetail(item, idx, mode = 'history') {
         );
         refList.appendChild(div);
       }
-    } else {
+    } else if (hasRefImages) {
       item.refImages.forEach(src => {
         refSrcs.push(src);
         const div = el('div', { className: 'preview-item' },
           el('img', { src })
+        );
+        refList.appendChild(div);
+      });
+    }
+
+    if (hasMaskFiles) {
+      for (const fname of item.maskFiles) {
+        if (!fname) continue;
+        const src = await localFS.getImageURL(fname, 'refs').catch(() => '');
+        if (!src) continue;
+        refSrcs.push(src);
+        const div = el('div', { className: 'preview-item relative group' },
+          el('img', { src, className: 'opacity-80 group-hover:opacity-100', style: 'border: 2px dashed var(--color-primary);' })
+        );
+        refList.appendChild(div);
+      }
+    } else if (hasMaskImages) {
+      item.maskImages.forEach(src => {
+        if (!src) return;
+        refSrcs.push(src);
+        const div = el('div', { className: 'preview-item relative group' },
+          el('img', { src, className: 'opacity-80 group-hover:opacity-100', style: 'border: 2px dashed var(--color-primary);' })
         );
         refList.appendChild(div);
       });

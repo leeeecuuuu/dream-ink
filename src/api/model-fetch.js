@@ -73,47 +73,60 @@ export async function fetchModels() {
   const baseGemini = cleanBase.replace(/\/v1$/, '');
   const baseOpenAI = cleanBase.endsWith('/v1') ? cleanBase : `${cleanBase}/v1`;
 
-  const results = await Promise.allSettled([
-    // Gemini 模型列表
-    fetch(`${baseGemini}/v1beta/models?key=${key}`, {
-      headers: { 'Content-Type': 'application/json' },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`Gemini HTTP ${r.status}`);
-        return r.json();
+  const customGemini = $('customModelsGemini')?.value?.trim();
+  const customOpenai = $('customModelsOpenai')?.value?.trim();
+  const parseCustom = (str) => str.split(',').map((s) => s.trim()).filter(Boolean);
+
+  const fetchGemini = customGemini
+    ? Promise.resolve(parseCustom(customGemini))
+    : fetch(`${baseGemini}/v1beta/models?key=${key}`, {
+        headers: { 'Content-Type': 'application/json' },
       })
-      .then((d) => {
-        const list = (d.models || []).map((m) => (m.name || m.id).replace('models/', ''));
-        // 排序：包含 gemini 的排在前面
-        return list.sort((a, b) => {
-          const aMatch = a.toLowerCase().includes('gemini');
-          const bMatch = b.toLowerCase().includes('gemini');
-          if (aMatch && !bMatch) return -1;
-          if (!aMatch && bMatch) return 1;
-          return a.localeCompare(b);
+        .then((r) => {
+          if (!r.ok) throw new Error(`Gemini HTTP ${r.status}`);
+          return r.json();
+        })
+        .then((d) => {
+          const list = (d.models || []).map((m) => {
+            let name = (m.name || m.id).replace('models/', '');
+            return name;
+          });
+          // 排序：包含 gemini 的排在前面
+          return list.sort((a, b) => {
+            const aMatch = a.toLowerCase().includes('gemini');
+            const bMatch = b.toLowerCase().includes('gemini');
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return a.localeCompare(b);
+          });
         });
-      }),
-    // OpenAI 兼容模型列表
-    fetch(`${baseOpenAI}/models`, {
-      headers: { Authorization: `Bearer ${key}` },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`OpenAI HTTP ${r.status}`);
-        return r.json();
+
+  const fetchOpenai = customOpenai
+    ? Promise.resolve(parseCustom(customOpenai))
+    : fetch(`${baseOpenAI}/models`, {
+        headers: { Authorization: `Bearer ${key}` },
       })
-      .then((d) => {
-        const list = (d.data || []).map((m) => m.id || m.name);
-        // 排序：包含特定关键字（gpt, dall, midjourney, mj, image, claude）的排在前面
-        const isImageModel = (n) => /gpt|dall|mj|midjourney|image|claude|flux/i.test(n);
-        return list.sort((a, b) => {
-          const aMatch = isImageModel(a);
-          const bMatch = isImageModel(b);
-          if (aMatch && !bMatch) return -1;
-          if (!aMatch && bMatch) return 1;
-          return a.localeCompare(b);
+        .then((r) => {
+          if (!r.ok) throw new Error(`OpenAI HTTP ${r.status}`);
+          return r.json();
+        })
+        .then((d) => {
+          const list = (d.data || []).map((m) => {
+            let name = m.id || m.name;
+            return name;
+          });
+          // 排序：包含特定关键字（gpt, dall, midjourney, mj, image, claude）的排在前面
+          const isImageModel = (n) => /gpt|dall|mj|midjourney|image|claude|flux/i.test(n);
+          return list.sort((a, b) => {
+            const aMatch = isImageModel(a);
+            const bMatch = isImageModel(b);
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return a.localeCompare(b);
+          });
         });
-      }),
-  ]);
+
+  const results = await Promise.allSettled([fetchGemini, fetchOpenai]);
 
   const [geminiRes, openaiRes] = results;
   const msgs = [];

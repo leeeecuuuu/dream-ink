@@ -47,8 +47,12 @@ export const fileToB64 = (file) =>
   });
 
 /** 将 URL（含 Blob URL）转为 File 对象 */
-export const urlToFile = async (url, name, type) =>
-  new File([await (await fetch(url)).blob()], name, { type });
+export const urlToFile = async (url, name, type) => {
+  if (url.startsWith('data:')) {
+    return new File([base64ToBlob(url)], name, { type });
+  }
+  return new File([await (await fetch(url)).blob()], name, { type });
+};
 
 /** Base64 Data URL 转 Blob 对象 */
 export const base64ToBlob = (b64) => {

@@ -107,6 +107,10 @@ export function switchEngine(engineKey, silent = false) {
 
   bus.emit('preview:update');
   if (!silent) showToast(`已切换至 ${cfg.label}`);
+
+  // 防改写开关：仅 OpenAI 引擎时显示
+  const guardLabel = $('rewriteGuardLabel');
+  if (guardLabel) guardLabel.classList.toggle('hidden', engineKey !== 'openai');
 }
 
 /**
@@ -125,18 +129,21 @@ export function initEngine() {
   const cfg = PROVIDER_DEFAULTS[eng];
   if (!cfg) return;
 
-  // 若 Gemini 模型框为空则填预设
+  // 恢复模型值：优先读 localStorage，无则用预设（但不覆盖 localStorage）
+  // 注意：此函数在 initFormPersistence 之前执行，输入框此时为空，
+  //       不能以"输入框为空"为由覆盖已保存的 localStorage 值！
   const mg = $('modelGemini');
-  if (mg && !mg.value.trim()) {
-    mg.value = PROVIDER_DEFAULTS.gemini.model;
-    ls('nanscript_modelGemini', PROVIDER_DEFAULTS.gemini.model);
+  if (mg) {
+    const savedMg = ls('nanscript_modelGemini');
+    mg.value = savedMg || PROVIDER_DEFAULTS.gemini.model;
+    if (!savedMg) ls('nanscript_modelGemini', PROVIDER_DEFAULTS.gemini.model);
   }
 
-  // 若 OpenAI 模型框为空则填预设
   const mo = $('modelOpenai');
-  if (mo && !mo.value.trim()) {
-    mo.value = PROVIDER_DEFAULTS.openai.model;
-    ls('nanscript_modelOpenai', PROVIDER_DEFAULTS.openai.model);
+  if (mo) {
+    const savedMo = ls('nanscript_modelOpenai');
+    mo.value = savedMo || PROVIDER_DEFAULTS.openai.model;
+    if (!savedMo) ls('nanscript_modelOpenai', PROVIDER_DEFAULTS.openai.model);
   }
 
   // 同步隐藏桥接字段 & apiTypeSelect
@@ -158,6 +165,10 @@ export function initEngine() {
 
   const hint = $('engineModelHintText');
   if (hint) hint.textContent = `当前模型: ${getModel()}`;
+
+  // 展示/隐藏防改写开关
+  const guardLabel = $('rewriteGuardLabel');
+  if (guardLabel) guardLabel.classList.toggle('hidden', eng !== 'openai');
 }
 
 // 订阅事件总线

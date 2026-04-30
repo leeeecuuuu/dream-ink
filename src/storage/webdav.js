@@ -61,7 +61,7 @@ export const webdav = {
    */
   _headers(targetUrl = null) {
     const headers = {
-      Authorization: 'Basic ' + btoa(`${this.user}:${this.pass}`),
+      Authorization: 'Basic ' + btoa(unescape(encodeURIComponent(`${this.user}:${this.pass}`))),
     };
     if (this.proxy && targetUrl) {
       headers['X-Target-Url'] = targetUrl;
@@ -145,19 +145,25 @@ export const webdav = {
    */
   async testConnection() {
     try {
-      const fetchUrl = this.proxy ? this.proxy : this.url;
+      const targetUrl = this.url.replace(/\/+$/, '') + '/';
+      const fetchUrl = this.proxy ? this.proxy : targetUrl;
       const res = await fetch(fetchUrl, {
         method: 'PROPFIND',
         headers: {
-          ...this._headers(this.url),
+          ...this._headers(targetUrl),
           Depth: '0',
+          'Content-Type': 'application/xml',
         },
+        body: '<?xml version="1.0" encoding="utf-8"?><propfind xmlns="DAV:"><prop><resourcetype/></prop></propfind>'
       });
       if (res.ok || res.status === 207) {
         return { ok: true, message: '连接成功 ✅' };
       }
       return { ok: false, message: `连接失败: HTTP ${res.status}` };
     } catch (e) {
+      if (e.message.includes('Failed to fetch')) {
+        return { ok: false, message: '连接失败: 可能是跨域(CORS)拦截，请配置 CORS 代理' };
+      }
       return { ok: false, message: `连接失败: ${e.message}` };
     }
   },

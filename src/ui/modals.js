@@ -17,6 +17,7 @@ export function initModals() {
     ['infoBtn', 'infoModal', 'closeInfoBtn'],
     ['apiConfigBtn', 'apiConfigModal', 'closeApiConfigBtn'],
     ['openLibraryBtn', 'libraryModal', 'closeLibraryBtn'],
+    ['syncConfigBtn', 'syncConfigModal', 'closeSyncConfigBtn'],
   ];
 
   modalBindings.forEach(([btnId, modalId, closeId]) => {
@@ -53,10 +54,6 @@ export function initModals() {
     hdClose.onclick = () => ($('historyDetailModal').style.display = 'none');
   }
 
-  const redrawClose = $('closeRedrawBtn');
-  if (redrawClose) {
-    redrawClose.onclick = () => ($('redrawModal').style.display = 'none');
-  }
 
   const hdModal = $('historyDetailModal');
   if (hdModal) {
@@ -65,6 +62,15 @@ export function initModals() {
         hdModal.style.display = 'none';
       }
     });
+  }
+
+  // 云同步弹窗「完成」按钮
+  const applySyncBtn = $('applySyncConfigBtn');
+  if (applySyncBtn) {
+    applySyncBtn.onclick = () => {
+      const modal = $('syncConfigModal');
+      if (modal) modal.style.display = 'none';
+    };
   }
 
   // 指南 Tab 切换
