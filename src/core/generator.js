@@ -190,12 +190,46 @@ export async function executeGeneration(custom = {}) {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error?.message || data.message || `API Error: ${res.status}`);
 
-        const items = Array.isArray(data?.data) ? data.data : [];
-        if (!items.length) throw new Error('API 返回成功但无图像数据');
+        // ===== 智能响应格式检测（瀑布式，互不冲突） =====
+        let src = '';
 
-        let src = items[0].url || '';
-        if (!src && items[0].b64_json) src = `data:${mimeType};base64,${items[0].b64_json}`;
-        if (!src) throw new Error('API 未返回有效的 url 或 b64_json');
+        // 格式 A：标准 Images API — { data: [{ url, b64_json }] }
+        const items = Array.isArray(data?.data) ? data.data : [];
+        if (items.length) {
+          src = items[0].url || '';
+          if (!src && items[0].b64_json) src = `data:${mimeType};base64,${items[0].b64_json}`;
+        }
+
+        // 格式 B：Responses API — { output: [{ type: "image_generation_call", result: "base64..." }] }
+        if (!src && Array.isArray(data?.output)) {
+          const imgOutput = data.output.find(o => o.type === 'image_generation_call' && o.result);
+          if (imgOutput) {
+            // result 可能是纯 base64 字符串，也可能已带 data: 前缀
+            src = imgOutput.result.startsWith('data:') ? imgOutput.result : `data:${mimeType};base64,${imgOutput.result}`;
+          }
+        }
+
+        // 格式 C：Chat Completions 内嵌图片 — { choices: [{ message: { content: "data:image/..." } }] }
+        if (!src && Array.isArray(data?.choices)) {
+          const msg = data.choices[0]?.message;
+          if (msg) {
+            // 情况 C1：content 直接就是 base64 data URI
+            if (typeof msg.content === 'string' && msg.content.startsWith('data:image')) {
+              src = msg.content;
+            }
+            // 情况 C2：content 是纯 base64 字符串（无前缀）
+            else if (typeof msg.content === 'string' && /^[A-Za-z0-9+/=]{100,}$/.test(msg.content.trim())) {
+              src = `data:${mimeType};base64,${msg.content.trim()}`;
+            }
+            // 情况 C3：content 包含 markdown 图片链接 ![](url) 或纯 URL
+            else if (typeof msg.content === 'string') {
+              const urlMatch = msg.content.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/) || msg.content.match(/(https?:\/\/[^\s"']+\.(?:png|jpg|jpeg|webp|gif))/i);
+              if (urlMatch) src = urlMatch[1];
+            }
+          }
+        }
+
+        if (!src) throw new Error('API 返回成功但无法从响应中提取图像（已尝试 Images / Responses / Chat 三种格式）');
 
         return { text: finalPrompt, image: src };
       } else {
