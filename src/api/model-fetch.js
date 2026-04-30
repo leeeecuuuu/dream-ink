@@ -68,29 +68,51 @@ export async function fetchModels() {
     updatePreview();
   };
 
+  // 智能处理 URL：兼容带有或不带有 /v1 的 base URL
+  const cleanBase = base.replace(/\/+$/, '');
+  const baseGemini = cleanBase.replace(/\/v1$/, '');
+  const baseOpenAI = cleanBase.endsWith('/v1') ? cleanBase : `${cleanBase}/v1`;
+
   const results = await Promise.allSettled([
     // Gemini 模型列表
-    fetch(`${base.replace(/\/$/, '')}/v1beta/models?key=${key}`, {
+    fetch(`${baseGemini}/v1beta/models?key=${key}`, {
       headers: { 'Content-Type': 'application/json' },
     })
       .then((r) => {
         if (!r.ok) throw new Error(`Gemini HTTP ${r.status}`);
         return r.json();
       })
-      .then((d) =>
-        (d.models || []).map((m) =>
-          (m.name || m.id).replace('models/', '')
-        )
-      ),
+      .then((d) => {
+        const list = (d.models || []).map((m) => (m.name || m.id).replace('models/', ''));
+        // 排序：包含 gemini 的排在前面
+        return list.sort((a, b) => {
+          const aMatch = a.toLowerCase().includes('gemini');
+          const bMatch = b.toLowerCase().includes('gemini');
+          if (aMatch && !bMatch) return -1;
+          if (!aMatch && bMatch) return 1;
+          return a.localeCompare(b);
+        });
+      }),
     // OpenAI 兼容模型列表
-    fetch(`${base.replace(/\/$/, '')}/v1/models`, {
+    fetch(`${baseOpenAI}/models`, {
       headers: { Authorization: `Bearer ${key}` },
     })
       .then((r) => {
         if (!r.ok) throw new Error(`OpenAI HTTP ${r.status}`);
         return r.json();
       })
-      .then((d) => (d.data || []).map((m) => m.id || m.name)),
+      .then((d) => {
+        const list = (d.data || []).map((m) => m.id || m.name);
+        // 排序：包含特定关键字（gpt, dall, midjourney, mj, image, claude）的排在前面
+        const isImageModel = (n) => /gpt|dall|mj|midjourney|image|claude|flux/i.test(n);
+        return list.sort((a, b) => {
+          const aMatch = isImageModel(a);
+          const bMatch = isImageModel(b);
+          if (aMatch && !bMatch) return -1;
+          if (!aMatch && bMatch) return 1;
+          return a.localeCompare(b);
+        });
+      }),
   ]);
 
   const [geminiRes, openaiRes] = results;
