@@ -142,14 +142,10 @@ export async function executeGeneration(custom = {}) {
     const genOne = async () => {
       if (apiType === 'openai') {
         // ===== OpenAI 兼容请求 =====
-        // 智能处理 base URL：
-        // - 移除末尾斜杠
-        // - 如果已有 /v1 结尾则保留，否则追加 /v1
-        // 支持格式：https://api.example.com、https://api.example.com/v1、https://api.example.com/openai/v1 等
-        const cleanBase = base.replace(/\/+$/, ''); // 去掉末尾所有斜杠
+        // 智能处理 base URL
+        const cleanBase = base.replace(/\/+$/, '');
         const baseUrlForOpenAI = cleanBase.endsWith('/v1') ? cleanBase : `${cleanBase}/v1`;
-        const endpoint = imgs.length ? '/images/edits' : '/images/generations';
-        const url = `${baseUrlForOpenAI}${endpoint}`;
+        const gptFormat = $('gptApiFormat')?.value || 'images';
 
         let fetchOptions = {
           method: 'POST',
@@ -166,24 +162,59 @@ export async function executeGeneration(custom = {}) {
           return new Blob([u8arr], { type: mime });
         };
 
+        let url;
         let openaiSize = ratio;
 
-        if (imgs.length) {
-          const fd = new FormData();
-          fd.append('model', model);
-          fd.append('prompt', finalPrompt);
-          if (openaiSize && openaiSize !== '') fd.append('size', openaiSize);
-          if (outputFormat) fd.append('output_format', outputFormat);
-          if (bgStyle) fd.append('background', bgStyle);
-          imgs.forEach((img, i) => fd.append('image', _b64ToBlob(img), `image${i}.png`));
-          fetchOptions.body = fd;
-        } else {
-          const reqBody = { model, prompt: finalPrompt };
+        if (gptFormat === 'chat') {
+          // ===== Chat Completions 模式 =====
+          url = `${baseUrlForOpenAI}/chat/completions`;
+          
+          // 构建 messages 数组
+          const contentParts = [];
+          // 如果有参考图，作为 image_url 类型附上
+          if (imgs.length) {
+            imgs.forEach(img => {
+              const imgData = img.includes(',') ? img : `data:image/png;base64,${img}`;
+              contentParts.push({
+                type: 'image_url',
+                image_url: { url: imgData },
+              });
+            });
+          }
+          // 文本提示词
+          contentParts.push({ type: 'text', text: finalPrompt });
+
+          const reqBody = {
+            model,
+            messages: [{ role: 'user', content: contentParts }],
+          };
+          // 如果可以传尺寸，放在顶层（某些代理支持）
           if (openaiSize && openaiSize !== '') reqBody.size = openaiSize;
-          if (outputFormat) reqBody.output_format = outputFormat;
-          if (bgStyle) reqBody.background = bgStyle;
+
           fetchOptions.headers['Content-Type'] = 'application/json';
           fetchOptions.body = JSON.stringify(reqBody);
+        } else {
+          // ===== Images API 模式（默认） =====
+          const endpoint = imgs.length ? '/images/edits' : '/images/generations';
+          url = `${baseUrlForOpenAI}${endpoint}`;
+
+          if (imgs.length) {
+            const fd = new FormData();
+            fd.append('model', model);
+            fd.append('prompt', finalPrompt);
+            if (openaiSize && openaiSize !== '') fd.append('size', openaiSize);
+            if (outputFormat) fd.append('output_format', outputFormat);
+            if (bgStyle) fd.append('background', bgStyle);
+            imgs.forEach((img, i) => fd.append('image', _b64ToBlob(img), `image${i}.png`));
+            fetchOptions.body = fd;
+          } else {
+            const reqBody = { model, prompt: finalPrompt };
+            if (openaiSize && openaiSize !== '') reqBody.size = openaiSize;
+            if (outputFormat) reqBody.output_format = outputFormat;
+            if (bgStyle) reqBody.background = bgStyle;
+            fetchOptions.headers['Content-Type'] = 'application/json';
+            fetchOptions.body = JSON.stringify(reqBody);
+          }
         }
 
         const res = await fetch(url, fetchOptions);

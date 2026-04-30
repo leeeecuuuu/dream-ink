@@ -14,7 +14,7 @@ import { localFS } from '../storage/local-fs.js';
 
 export function initFormPersistence() {
   // 表单字段持久化
-  ['baseUrl', 'apiKey', 'modelGemini', 'modelOpenai', 'ratioSelect', 'customWidth', 'customHeight', 'qualitySelect', 'promptInput', 'batchSelect'].forEach(id => {
+  ['baseUrl', 'apiKey', 'modelGemini', 'modelOpenai', 'ratioSelect', 'customWidth', 'customHeight', 'qualitySelect', 'promptInput', 'batchSelect', 'gptApiFormat'].forEach(id => {
     const elem = $(id); if (!elem) return;
     const saved = ls('nanscript_' + id); if (saved) elem.value = saved;
     const sync = () => {
