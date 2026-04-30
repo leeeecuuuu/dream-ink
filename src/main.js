@@ -166,6 +166,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // ========== 快捷键绑定 ==========
+  const promptInput = $('promptInput');
+  if (promptInput) {
+    promptInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        $('runBtn').click();
+      }
+    });
+  }
+
   // ========== 主操作按钮绑定 ==========
   $('fetchModelsBtn').onclick = fetchModels;
   // 生成中点击 → 终止；空闲时点击 → 入队

@@ -367,6 +367,7 @@ export async function executeGeneration(custom = {}) {
   } catch (e) {
     if (e.name === 'AbortError') {
       showToast('生成已终止', 'error');
+      clearQueue(); // 终止时清空队列，防止立刻开始下一个
     } else {
       console.error(e);
       showToast(e.message, 'error');
