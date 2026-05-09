@@ -124,28 +124,28 @@
                 <!-- GPT 参数面板（OpenAI） -->
                 <div id="gptParamsPanel" class="space-y-3 mb-6 hidden">
                     <div class="grid grid-cols-1 gap-3">
-                        <div class="space-y-2 relative" id="ratioWidget">
+                        <div class="space-y-2 relative ratio-widget" id="ratioWidget">
                             <label class="text-[11px] font-bold tracking-widest text-on-surface-variant flex justify-between items-center">
                                 画幅尺寸
                             </label>
-                            <div id="ratioSelectBtn" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 cursor-pointer flex justify-between items-center hover:bg-surface-container-low transition-colors">
-                                <span id="ratioSelectText" class="font-mono">1024 x 1024 (1:1 高清)</span>
+                            <div id="ratioSelectBtn" class="ratio-select-btn">
+                                <span id="ratioSelectText" class="ratio-select-text">1024 x 1024 (1:1 高清)</span>
                                 <span class="material-symbols-outlined text-[16px] text-on-surface-variant pointer-events-none">expand_more</span>
                             </div>
                             <input type="hidden" id="ratioSelect" value="1024x1024">
 
-                            <div id="ratioDropdown" class="hidden absolute top-[60px] left-0 right-0 bg-surface-container-highest border border-outline-variant rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto custom-scrollbar flex flex-col py-1">
+                            <div id="ratioDropdown" class="ratio-dropdown hidden custom-scrollbar">
                             </div>
 
-                            <div id="customRatioContainer" class="hidden mt-2 flex items-center gap-2 bg-surface-container-lowest border border-outline-variant p-1.5 rounded-lg">
-                                <div class="flex-1 relative">
-                                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-on-surface-variant font-bold">W</span>
-                                    <input type="number" id="customWidth" class="w-full bg-transparent text-xs text-on-surface py-1 pl-6 pr-1 text-center focus:outline-none font-mono placeholder:text-outline/50" placeholder="宽" min="256" max="8192" step="64">
+                            <div id="customRatioContainer" class="custom-ratio-container hidden">
+                                <div class="custom-dimension-field">
+                                    <span>W</span>
+                                    <input type="number" id="customWidth" placeholder="宽" min="256" max="8192" step="64">
                                 </div>
-                                <span class="text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">close</span></span>
-                                <div class="flex-1 relative">
-                                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-on-surface-variant font-bold">H</span>
-                                    <input type="number" id="customHeight" class="w-full bg-transparent text-xs text-on-surface py-1 pl-6 pr-1 text-center focus:outline-none font-mono placeholder:text-outline/50" placeholder="高" min="256" max="8192" step="64">
+                                <span class="custom-dimension-separator">×</span>
+                                <div class="custom-dimension-field">
+                                    <span>H</span>
+                                    <input type="number" id="customHeight" placeholder="高" min="256" max="8192" step="64">
                                 </div>
                             </div>
                         </div>

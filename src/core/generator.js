@@ -662,9 +662,11 @@ export async function executeGeneration(custom = {}) {
     const compatEndpoint =
       compatFormat === "chat"
         ? "/chat/completions"
-        : imgs.length
-          ? "/images/edits"
-          : "/images/generations";
+        : compatFormat === "responses"
+          ? "/responses"
+          : imgs.length
+            ? "/images/edits"
+            : "/images/generations";
     const mimeType =
       outputFormat === "jpeg"
         ? "image/jpeg"
@@ -753,6 +755,8 @@ export async function executeGeneration(custom = {}) {
         let url;
         const openaiSize =
           apiType === "gemini" ? mappedBananaCompatSize : ratio;
+        const openaiImageSizeLabel =
+          quality === "ultra" ? "4K" : quality === "high" ? "2K" : "1K";
         const moderation = $("moderationSelect")?.value || "auto";
         generationDebug("openai:prepare-request", {
           urlBase: sanitizeUrlForLog(baseUrlForOpenAI),
@@ -769,6 +773,7 @@ export async function executeGeneration(custom = {}) {
           bananaImageSize,
           mappedBananaCompatSize,
           openaiSize,
+          openaiImageSizeLabel,
           openaiSizeSource: apiType === "gemini" ? "banana-image-config-map" : "ratio",
           modelInBody: true,
           modelInPath: false,
@@ -796,8 +801,82 @@ export async function executeGeneration(custom = {}) {
             model: finalModel,
             messages: [{ role: "user", content: contentParts }],
           };
-          if (openaiSize && openaiSize !== "") reqBody.size = openaiSize;
+          if (openaiSize && openaiSize !== "") {
+            // 不同 OpenAI 兼容中转对 Chat 出图的高清参数支持并不一致：
+            // - size: OpenAI 风格
+            // - image_size: 常见 oneapi / 聚合模型风格
+            // - imageSize + generationConfig.imageConfig: Gemini/Banana 风格
+            // 同时传递这些非冲突字段，可恢复部分渠道历史版本的 2K/4K 出图能力。
+            reqBody.size = openaiSize;
+            reqBody.image_size = openaiSize;
+            reqBody.imageSize = openaiSize;
+            reqBody.aspect_ratio = openaiSize;
+            reqBody.generationConfig = {
+              imageConfig: {
+                aspectRatio: openaiSize,
+                imageSize: openaiImageSizeLabel,
+              },
+            };
+          }
+          if (quality) reqBody.quality = quality;
+          if (outputFormat) reqBody.output_format = outputFormat;
+          if (bgStyle) reqBody.background = bgStyle;
           if (moderation !== "auto") reqBody.moderation = moderation;
+
+          generationDebug("openai:chat-request-body-summary", {
+            model: finalModel,
+            size: reqBody.size,
+            image_size: reqBody.image_size,
+            imageSize: reqBody.imageSize,
+            aspect_ratio: reqBody.aspect_ratio,
+            quality: reqBody.quality,
+            output_format: reqBody.output_format,
+            background: reqBody.background,
+            generationConfig: reqBody.generationConfig,
+            contentPartTypes: contentParts.map((part) => part.type),
+          });
+
+          fetchOptions.headers["Content-Type"] = "application/json";
+          fetchOptions.body = JSON.stringify(reqBody);
+        } else if (compatFormat === "responses") {
+          // ===== Responses API 模式 =====
+          // 官方 Responses API 通过 image_generation tool 出图：
+          // POST /v1/responses { model, input, tools: [{ type: "image_generation", ... }] }
+          // 返回通常位于 output[].type === "image_generation_call" 的 result 字段。
+          url = `${baseUrlForOpenAI}${compatEndpoint}`;
+
+          const contentParts = [];
+          if (imgs.length) {
+            imgs.forEach((img) => {
+              const imgData = img.includes(",")
+                ? img
+                : `data:image/png;base64,${img}`;
+              contentParts.push({
+                type: "input_image",
+                image_url: imgData,
+              });
+            });
+          }
+          contentParts.push({ type: "input_text", text: finalPrompt });
+
+          const imageGenerationTool = { type: "image_generation" };
+          if (openaiSize && openaiSize !== "") imageGenerationTool.size = openaiSize;
+          if (quality) imageGenerationTool.quality = quality;
+          if (outputFormat) imageGenerationTool.output_format = outputFormat;
+          if (bgStyle) imageGenerationTool.background = bgStyle;
+          if (moderation !== "auto") imageGenerationTool.moderation = moderation;
+
+          const reqBody = {
+            model: finalModel,
+            input: [{ role: "user", content: contentParts }],
+            tools: [imageGenerationTool],
+          };
+
+          generationDebug("openai:responses-request-body-summary", {
+            model: finalModel,
+            imageGenerationTool,
+            inputContentPartTypes: contentParts.map((part) => part.type),
+          });
 
           fetchOptions.headers["Content-Type"] = "application/json";
           fetchOptions.body = JSON.stringify(reqBody);
@@ -866,7 +945,7 @@ export async function executeGeneration(custom = {}) {
         const data = await res.json().catch(() => ({}));
         const summarizeValue = (value, depth = 0) => {
           if (value == null) return value;
-          if (depth >= 2) {
+          if (depth >= 3) {
             if (Array.isArray(value)) return `[array:${value.length}]`;
             if (typeof value === "object") return `[object:${Object.keys(value).length}]`;
             return value;
@@ -877,33 +956,50 @@ export async function executeGeneration(custom = {}) {
           if (typeof value === "object") {
             return Object.fromEntries(
               Object.entries(value)
-                .slice(0, 8)
+                .slice(0, 12)
                 .map(([k, v]) => [k, summarizeValue(v, depth + 1)]),
             );
           }
           if (typeof value === "string") {
-            return value.length > 160 ? `${value.slice(0, 160)}…` : value;
+            return value.length > 300 ? `${value.slice(0, 300)}…` : value;
           }
           return value;
         };
+
+        const isLikelyImageUrl = (candidate) => {
+          if (!candidate || typeof candidate !== "string") return false;
+          const trimmed = candidate.trim();
+          if (/^data:image\//i.test(trimmed)) return true;
+          let path = trimmed;
+          try {
+            path = new URL(trimmed, base).pathname;
+          } catch {
+            path = trimmed.split(/[?#]/)[0];
+          }
+          return (
+            /\.(png|jpe?g|webp|gif|avif|bmp|svg)$/i.test(path) ||
+            /\/(image|images|img|file|files|download|asset|assets)(\/|$)/i.test(path)
+          );
+        };
+
         const extractImageSrcFromValue = (value) => {
           if (!value) return "";
           if (typeof value === "string") {
             const trimmed = value.trim();
             if (!trimmed) return "";
             if (/^data:image\//i.test(trimmed)) return trimmed;
-            if (/^(https?:\/\/|\/)/i.test(trimmed)) return trimmed;
+            if (/^(https?:\/\/|\/)/i.test(trimmed) && isLikelyImageUrl(trimmed)) return trimmed;
             if (/^[A-Za-z0-9+/=\s]+$/.test(trimmed) && trimmed.replace(/\s+/g, "").length > 128) {
               return `data:${mimeType};base64,${trimmed.replace(/\s+/g, "")}`;
             }
             const mdDataMatch = trimmed.match(/!?\[[^\]]*\]\((data:image\/[^)]+)\)/i);
             if (mdDataMatch) return mdDataMatch[1];
             const mdUrlMatch = trimmed.match(/!?\[[^\]]*\]\((https?:\/\/[^)\s]+|\/[^)\s]+)\)/i);
-            if (mdUrlMatch) return mdUrlMatch[1];
+            if (mdUrlMatch && isLikelyImageUrl(mdUrlMatch[1])) return mdUrlMatch[1];
             const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/i);
             if (dataUrlMatch) return dataUrlMatch[0];
             const urlMatch = trimmed.match(/(https?:\/\/[^\s)]+|\/[^\s)]+)/);
-            if (urlMatch) return urlMatch[1];
+            if (urlMatch && isLikelyImageUrl(urlMatch[1])) return urlMatch[1];
             return "";
           }
           if (Array.isArray(value)) {
@@ -952,6 +1048,10 @@ export async function executeGeneration(custom = {}) {
           }
           return "";
         };
+
+        const firstChoiceMessage = Array.isArray(data?.choices)
+          ? data.choices[0]?.message
+          : null;
         generationDebug("openai:response-body-summary", {
           url: sanitizeUrlForLog(url),
           compatFormat,
@@ -961,11 +1061,15 @@ export async function executeGeneration(custom = {}) {
             output: data?.output,
             choices: data?.choices,
           }),
+          firstChoiceMessagePreview: summarizeValue(firstChoiceMessage),
+          schemaHint:
+            Array.isArray(data?.choices) && !Array.isArray(data?.data)
+              ? "chat-like-response-on-images-endpoint"
+              : null,
         });
-        // ===== 智能响应格式检测（瀑布式，互不冲突） =====
+
         const items = Array.isArray(data?.data) ? data.data : [];
         if (items.length) {
-          // 优先使用 b64_json
           if (items[0].b64_json) {
             src = `data:${mimeType};base64,${items[0].b64_json}`;
           } else if (items[0].url) {
@@ -984,9 +1088,8 @@ export async function executeGeneration(custom = {}) {
           }
         }
 
-        if (!src && Array.isArray(data?.choices)) {
-          const msg = data.choices[0]?.message;
-          src = extractImageSrcFromValue(msg);
+        if (!src && firstChoiceMessage) {
+          src = extractImageSrcFromValue(firstChoiceMessage);
         }
 
         if (!src) src = extractImageSrcFromValue(data);
@@ -1004,63 +1107,81 @@ export async function executeGeneration(custom = {}) {
                   ? "relative-url"
                   : "other"
             : null,
+          srcPreview: src && !src.startsWith("data:") ? src.slice(0, 300) : null,
         });
 
-        if (!src)
+        if (!src) {
+          const hint =
+            Array.isArray(data?.choices) && !Array.isArray(data?.data)
+              ? "当前接口返回 choices（Chat 格式）而不是 data（Images 格式），请尝试把 GPT API 格式切换为 chat，或更换支持 Images API 的渠道。"
+              : "";
           throw new Error(
-            "API 返回成功但无法从响应中提取图像（已尝试 Images / Responses / Chat 三种格式）",
+            `API 返回成功但无法从响应中提取图像（已尝试 Images / Responses / Chat 三种格式）。${hint}`,
           );
+        }
 
         if (src && !src.startsWith("data:")) {
+          let imageUrl = src;
           try {
             const baseUrlObj = new URL(base);
-            if (src.startsWith("/")) {
-              src = baseUrlObj.origin + src;
-            } else if (!src.startsWith("http")) {
-              src =
+            if (imageUrl.startsWith("/")) {
+              imageUrl = baseUrlObj.origin + imageUrl;
+            } else if (!imageUrl.startsWith("http")) {
+              imageUrl =
                 baseUrlObj.origin +
                 (baseUrlObj.pathname.endsWith("/")
                   ? baseUrlObj.pathname
                   : baseUrlObj.pathname + "/") +
-                src;
+                imageUrl;
             } else {
-              const srcUrl = new URL(src);
-              if (
-                ["127.0.0.1", "localhost", "0.0.0.0"].includes(
-                  srcUrl.hostname,
-                ) &&
-                baseUrlObj.hostname !== srcUrl.hostname
-              ) {
+              const srcUrl = new URL(imageUrl);
+              if (["127.0.0.1", "localhost", "0.0.0.0"].includes(srcUrl.hostname) && baseUrlObj.hostname !== srcUrl.hostname) {
                 srcUrl.protocol = baseUrlObj.protocol;
                 srcUrl.hostname = baseUrlObj.hostname;
                 srcUrl.port = baseUrlObj.port;
-                src = srcUrl.toString();
+                imageUrl = srcUrl.toString();
               }
             }
           } catch (e) {
-            console.warn("URL 解析失败", e);
-          }
-
-          try {
-            const imgRes = await fetch(src, {
-              headers: { Authorization: `Bearer ${key}` },
+            generationDebug("openai:image-url-normalize-error", {
+              srcPreview: src.slice(0, 300),
+              message: e?.message,
             });
-            if (imgRes.ok) {
-              const blob = await imgRes.blob();
-              src = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-            } else {
-              console.warn("带 Auth 头获取图片失败，状态码:", imgRes.status);
-            }
-          } catch (e) {
-            console.warn("获取图片异常:", e);
+            throw new Error(`API 返回了图片链接，但链接格式无效: ${src.slice(0, 120)}`);
           }
-        }
 
+          const imgRes = await fetch(imageUrl, {
+            headers: { Authorization: `Bearer ${key}` },
+          }).catch((e) => {
+            throw new Error(`API 返回了图片链接，但下载图片失败: ${e?.message || e}`);
+          });
+
+          const contentType = imgRes.headers.get("content-type") || "";
+          generationDebug("openai:image-fetch-meta", {
+            imageUrl: sanitizeUrlForLog(imageUrl),
+            ok: imgRes.ok,
+            status: imgRes.status,
+            contentType,
+          });
+
+          if (!imgRes.ok) {
+            throw new Error(`API 返回了图片链接，但下载图片失败: HTTP ${imgRes.status}`);
+          }
+          if (contentType && !contentType.toLowerCase().startsWith("image/")) {
+            throw new Error(`API 返回的链接不是图片资源，Content-Type=${contentType}`);
+          }
+
+          const blob = await imgRes.blob();
+          if (!blob.type.startsWith("image/")) {
+            throw new Error(`API 返回的链接内容不是图片，Blob-Type=${blob.type || "unknown"}`);
+          }
+          src = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
         return { text: finalPrompt, image: src };
       } else {
         // ===== Gemini 请求 =====

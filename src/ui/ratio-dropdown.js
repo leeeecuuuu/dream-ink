@@ -7,6 +7,16 @@
 import { $ } from '../utils/helpers.js';
 import { el, clearChildren } from '../utils/dom.js';
 
+const ratioLabelOf = (value = '') => {
+  const match = String(value).match(/^(\d+)x(\d+)$/i);
+  if (!match) return '';
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const divisor = gcd(width, height) || 1;
+  return `${width / divisor}:${height / divisor}`;
+};
+
 /** 尺寸预设列表 */
 const PRESETS = [
   {
@@ -71,19 +81,27 @@ export function initRatioDropdown() {
   PRESETS.forEach((group) => {
     // 分组标题
     const groupTitle = el('div', {
-      className: 'px-3 py-1.5 text-[10px] font-bold text-primary bg-primary/5 uppercase tracking-widest sticky top-0 backdrop-blur-md z-10',
+      className: 'ratio-group-title',
       textContent: group.group,
     });
     drop.appendChild(groupTitle);
 
     // 选项容器
-    const optContainer = el('div', { className: 'py-1' });
+    const optContainer = el('div', { className: 'ratio-option-grid' });
 
     group.items.forEach((item) => {
+      const ratioLabel = item.val === 'custom' ? '' : ratioLabelOf(item.val);
       const opt = el('div', {
-        className: 'ratio-opt px-3 py-2 text-xs text-on-surface hover:bg-surface-container cursor-pointer transition-colors font-mono flex justify-between items-center',
+        className: item.val === 'custom' ? 'ratio-opt ratio-opt-custom' : 'ratio-opt',
         dataset: { val: item.val },
-      }, el('span', { textContent: item.label }));
+      },
+      el('span', {
+        className: 'ratio-opt-main',
+        textContent: item.val === 'custom' ? '自定义宽高' : item.val.replace('x', ' × '),
+      }),
+      ...(ratioLabel
+        ? [el('span', { className: 'ratio-opt-sub', textContent: ratioLabel })]
+        : []));
 
       opt.onclick = () => {
         updateUI(item.val);
@@ -116,19 +134,17 @@ export function initRatioDropdown() {
     // 高亮选中项
     drop.querySelectorAll('.ratio-opt').forEach((optEl) => {
       if (optEl.dataset.val === val) {
-        optEl.classList.add('bg-primary/10', 'text-primary', 'font-bold');
+        optEl.classList.add('active');
       } else {
-        optEl.classList.remove('bg-primary/10', 'text-primary', 'font-bold');
+        optEl.classList.remove('active');
       }
     });
 
     // 自定义尺寸输入框显隐
     if (val === 'custom') {
       customBox.classList.remove('hidden');
-      customBox.classList.add('flex');
     } else {
       customBox.classList.add('hidden');
-      customBox.classList.remove('flex');
     }
   }
 

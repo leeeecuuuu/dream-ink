@@ -58,6 +58,24 @@ export const InfoModal = `
                         <h4 class="font-bold text-on-surface text-base">最新动态</h4>
 
                         <div class="pb-4 border-b border-outline-variant/50">
+                            <p class="font-bold text-primary mb-1">2026-05-09</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">接口兼容与画幅体验继续打磨：让模型更好找、参数更稳传、生成结果更容易识别。</p>
+                            <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
+                                <li>🧩 <strong class="text-on-surface">新增 Responses API 模式。</strong>OpenAI 兼容接口可切换到 <code class="bg-surface-container px-1 rounded">/v1/responses</code>，支持通过 image_generation tool 调用生图能力。</li>
+                                <li>🎯 <strong class="text-on-surface">模型列表过滤更精准。</strong>Gemini 与 GPT Image 区域只展示对应引擎模型，避免第三方接口返回全量模型时混入无关选项。</li>
+                                <li>📐 <strong class="text-on-surface">高清尺寸参数兼容增强。</strong>同步传递 size、image_size、imageSize 与 generationConfig 等常见字段，尽量恢复不同代理下的 2K / 4K 出图能力。</li>
+                                <li>🖼️ <strong class="text-on-surface">图片结果识别更稳。</strong>增强对 Responses、Chat-like 返回结构和图片链接的解析，减少把普通文本误判为生成图的情况。</li>
+                                <li>✨ <strong class="text-on-surface">画幅选择细节优化。</strong>整理下拉菜单与自定义宽高输入样式，让比例选择区更统一、更清爽。</li>
+                            </ul>
+                        </div>
+
+                        <details class="group">
+                            <summary class="list-none cursor-pointer py-2 text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2 text-xs font-medium">
+                                <span class="material-symbols-outlined text-[16px] group-open:rotate-90 transition-transform">chevron_right</span>
+                                查看历史更新记录
+                            </summary>
+                            <div class="space-y-4 mt-2">
+                                <div class="pb-4 border-b border-outline-variant/50">
                             <p class="font-bold text-primary mb-1">2026-04-30（晚间更新）</p>
                             <p class="text-[11px] text-on-surface-variant mb-2 italic">创作控制力与配置体验同步升级：从审核、尺寸到重绘流程，都更清晰、更可控。</p>
                             <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
@@ -69,12 +87,6 @@ export const InfoModal = `
                             </ul>
                         </div>
 
-                        <details class="group">
-                            <summary class="list-none cursor-pointer py-2 text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2 text-xs font-medium">
-                                <span class="material-symbols-outlined text-[16px] group-open:rotate-90 transition-transform">chevron_right</span>
-                                查看历史更新记录
-                            </summary>
-                            <div class="space-y-4 mt-2">
                                 <div class="pb-4 border-b border-outline-variant/50">
                                     <p class="font-bold text-primary mb-1">2026-04-30</p>
                                     <p class="text-[11px] text-on-surface-variant mb-2 italic">接口适配增强，兼容更多代理服务。</p>

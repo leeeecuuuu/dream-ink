@@ -19,7 +19,9 @@ const MODEL_FETCH_CONFIG = {
     customId: "customModelsGemini",
     storageKey: "nanscript_modelGemini",
     emptyConfigMessage: "缺少 Banana API 配置",
-    preferredPattern: /gemini|image/i,
+    // 只把 Gemini/Banana 模型纳入本引擎下拉与计数，避免第三方 /models 返回全量模型时串到 GPT 区域。
+    modelPattern: /^gemini(?:-|$)/i,
+    preferredPattern: /^gemini(?:-|$)/i,
   },
   openai: {
     label: "GPT Image-2",
@@ -30,7 +32,9 @@ const MODEL_FETCH_CONFIG = {
     customId: "customModelsOpenai",
     storageKey: "nanscript_modelOpenai",
     emptyConfigMessage: "缺少 GPT Image-2 API 配置",
-    preferredPattern: /gpt|dall|mj|midjourney|image|claude|flux/i,
+    // GPT Image-2 区域只识别 OpenAI 生图模型前缀，避免把 gemini-* 等其它引擎模型算入数量。
+    modelPattern: /^(?:gpt-image(?:-|$)|dall-e(?:-|$))/i,
+    preferredPattern: /^gpt-image(?:-|$)/i,
   },
 };
 
@@ -42,12 +46,22 @@ const parseCustomModels = (str = "") =>
 
 const uniqueModels = (models = []) => [...new Set(models.filter(Boolean))];
 
+function normalizeModelName(name = "") {
+  return String(name).trim().replace(/^models\//, "");
+}
+
+function filterProviderModels(provider, models = []) {
+  const pattern = MODEL_FETCH_CONFIG[provider]?.modelPattern;
+  const normalized = uniqueModels(models.map(normalizeModelName).filter(Boolean));
+  return pattern ? normalized.filter((name) => pattern.test(name)) : normalized;
+}
+
 function parseGeminiModelList(data = {}) {
   const googleModels = Array.isArray(data.models) ? data.models : [];
   const openaiModels = Array.isArray(data.data) ? data.data : [];
   return uniqueModels(
     [...googleModels, ...openaiModels]
-      .map((m) => (m.name || m.id || "").replace(/^models\//, ""))
+      .map((m) => normalizeModelName(m.name || m.id || ""))
       .filter(Boolean),
   );
 }
@@ -120,7 +134,7 @@ async function requestProviderModels(provider) {
   const apiCfg = getApiConfig(provider);
   const fetchCfg = MODEL_FETCH_CONFIG[provider];
   const customModels = $(fetchCfg.customId)?.value?.trim();
-  if (customModels) return parseCustomModels(customModels);
+  if (customModels) return filterProviderModels(provider, parseCustomModels(customModels));
 
   if (!apiCfg.apiKey || !apiCfg.baseUrl) {
     throw new Error(fetchCfg.emptyConfigMessage);
@@ -135,9 +149,12 @@ async function requestProviderModels(provider) {
       const data = await fetchJson(`${base}/models`, {
         headers: { Authorization: `Bearer ${apiCfg.apiKey}` },
       });
-      return (data.data || [])
-        .map((m) => m.id || m.name || "")
-        .filter(Boolean)
+      return filterProviderModels(
+        "gemini",
+        (data.data || [])
+          .map((m) => m.id || m.name || "")
+          .filter(Boolean),
+      )
         .sort((a, b) => {
           const aMatch = MODEL_FETCH_CONFIG.gemini.preferredPattern.test(a);
           const bMatch = MODEL_FETCH_CONFIG.gemini.preferredPattern.test(b);
@@ -190,7 +207,7 @@ async function requestProviderModels(provider) {
     for (const attempt of attempts) {
       try {
         const data = await fetchJson(attempt.url, { headers: attempt.headers });
-        const models = parseGeminiModelList(data);
+        const models = filterProviderModels("gemini", parseGeminiModelList(data));
         if (models.length) {
           return models.sort((a, b) => {
             const aMatch = a.toLowerCase().includes("gemini");
@@ -214,9 +231,12 @@ async function requestProviderModels(provider) {
   const data = await fetchJson(`${base}/models`, {
     headers: { Authorization: `Bearer ${apiCfg.apiKey}` },
   });
-  return (data.data || [])
-    .map((m) => m.id || m.name || "")
-    .filter(Boolean)
+  return filterProviderModels(
+    "openai",
+    (data.data || [])
+      .map((m) => m.id || m.name || "")
+      .filter(Boolean),
+  )
     .sort((a, b) => {
       const aMatch = MODEL_FETCH_CONFIG.openai.preferredPattern.test(a);
       const bMatch = MODEL_FETCH_CONFIG.openai.preferredPattern.test(b);
