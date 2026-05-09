@@ -80,76 +80,113 @@
                     <textarea id="promptInput" class="w-full h-40 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary focus:border-primary resize-none shadow-sm transition-shadow text-[13px]" placeholder="请输入你想要生成的画面描述..."></textarea>
                 </div>
                 
-                <!-- Parameters -->
-                <div class="grid grid-cols-1 gap-3 mb-4">
-                    <div class="space-y-2 relative" id="ratioWidget">
-                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant flex justify-between items-center">
-                            画幅尺寸
-                        </label>
-                        
-                        <!-- 自定义选择器按钮 -->
-                        <div id="ratioSelectBtn" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 cursor-pointer flex justify-between items-center hover:bg-surface-container-low transition-colors">
-                            <span id="ratioSelectText" class="font-mono">1024 x 1024 (1:1 高清)</span>
-                            <span class="material-symbols-outlined text-[16px] text-on-surface-variant pointer-events-none">expand_more</span>
+                <!-- Banana 参数面板（Gemini） -->
+                <div id="bananaParamsPanel" class="space-y-3 mb-6">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画幅比例</label>
+                            <select id="bananaAspectRatio" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="1:1" selected>1:1</option>
+                                <option value="16:9">16:9</option>
+                                <option value="9:16">9:16</option>
+                                <option value="4:3">4:3</option>
+                                <option value="3:4">3:4</option>
+                            </select>
                         </div>
-                        <input type="hidden" id="ratioSelect" value="1024x1024">
-
-                        <!-- 下拉面板 -->
-                        <div id="ratioDropdown" class="hidden absolute top-[60px] left-0 right-0 bg-surface-container-highest border border-outline-variant rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto custom-scrollbar flex flex-col py-1">
-                            <!-- JS 动态生成 -->
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">图像尺寸</label>
+                            <select id="bananaImageSize" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="1K" selected>1K</option>
+                                <option value="2K">2K</option>
+                                <option value="4K">4K</option>
+                            </select>
                         </div>
-
-                        <!-- 自定义输入框 (分离宽高) -->
-                        <div id="customRatioContainer" class="hidden mt-2 flex items-center gap-2 bg-surface-container-lowest border border-outline-variant p-1.5 rounded-lg">
-                            <div class="flex-1 relative">
-                                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-on-surface-variant font-bold">W</span>
-                                <input type="number" id="customWidth" class="w-full bg-transparent text-xs text-on-surface py-1 pl-6 pr-1 text-center focus:outline-none font-mono placeholder:text-outline/50" placeholder="宽" min="256" max="8192" step="64">
-                            </div>
-                            <span class="text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">close</span></span>
-                            <div class="flex-1 relative">
-                                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-on-surface-variant font-bold">H</span>
-                                <input type="number" id="customHeight" class="w-full bg-transparent text-xs text-on-surface py-1 pl-6 pr-1 text-center focus:outline-none font-mono placeholder:text-outline/50" placeholder="高" min="256" max="8192" step="64">
-                            </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">响应模态</label>
+                            <select id="bananaResponseModalities" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="IMAGE" selected>仅图像 (IMAGE)</option>
+                                <option value="TEXT_IMAGE">文本+图像 (TEXT,IMAGE)</option>
+                                <option value="TEXT">仅文本 (TEXT)</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">联网搜索</label>
+                            <label class="w-full h-[38px] bg-surface-container-lowest border border-outline-variant rounded-lg px-3 flex items-center justify-between cursor-pointer">
+                                <span class="text-xs text-on-surface-variant">启用 Google Search</span>
+                                <input type="checkbox" id="bananaEnableGoogleSearch" class="accent-primary">
+                            </label>
                         </div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3 mb-4">
-                    <div class="space-y-2">
-                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">图像质量</label>
-                        <select id="qualitySelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
-                            <option value="standard" selected>标准画质</option>
-                            <option value="high">高清画质</option>
-                            <option value="ultra">极致画质</option>
-                        </select>
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">内容审核</label>
-                        <select id="moderationSelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
-                            <option value="auto" selected>自动 (Auto)</option>
-                            <option value="low">低度 (Low)</option>
-                        </select>
-                    </div>
-                </div>
+                <!-- GPT 参数面板（OpenAI） -->
+                <div id="gptParamsPanel" class="space-y-3 mb-6 hidden">
+                    <div class="grid grid-cols-1 gap-3">
+                        <div class="space-y-2 relative" id="ratioWidget">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant flex justify-between items-center">
+                                画幅尺寸
+                            </label>
+                            <div id="ratioSelectBtn" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 cursor-pointer flex justify-between items-center hover:bg-surface-container-low transition-colors">
+                                <span id="ratioSelectText" class="font-mono">1024 x 1024 (1:1 高清)</span>
+                                <span class="material-symbols-outlined text-[16px] text-on-surface-variant pointer-events-none">expand_more</span>
+                            </div>
+                            <input type="hidden" id="ratioSelect" value="1024x1024">
 
-                <!-- Output Format & Background -->
-                <div class="grid grid-cols-2 gap-3 mb-6">
-                    <div class="space-y-2">
-                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">输出格式</label>
-                        <select id="outputFormat" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
-                            <option value="png" selected>PNG（无损）</option>
-                            <option value="jpeg">JPEG（压缩）</option>
-                            <option value="webp">WebP（现代）</option>
-                        </select>
+                            <div id="ratioDropdown" class="hidden absolute top-[60px] left-0 right-0 bg-surface-container-highest border border-outline-variant rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto custom-scrollbar flex flex-col py-1">
+                            </div>
+
+                            <div id="customRatioContainer" class="hidden mt-2 flex items-center gap-2 bg-surface-container-lowest border border-outline-variant p-1.5 rounded-lg">
+                                <div class="flex-1 relative">
+                                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-on-surface-variant font-bold">W</span>
+                                    <input type="number" id="customWidth" class="w-full bg-transparent text-xs text-on-surface py-1 pl-6 pr-1 text-center focus:outline-none font-mono placeholder:text-outline/50" placeholder="宽" min="256" max="8192" step="64">
+                                </div>
+                                <span class="text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">close</span></span>
+                                <div class="flex-1 relative">
+                                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-on-surface-variant font-bold">H</span>
+                                    <input type="number" id="customHeight" class="w-full bg-transparent text-xs text-on-surface py-1 pl-6 pr-1 text-center focus:outline-none font-mono placeholder:text-outline/50" placeholder="高" min="256" max="8192" step="64">
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="space-y-2">
-                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">背景样式</label>
-                        <select id="bgStyle" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
-                            <option value="" selected>默认</option>
-                            <option value="transparent">透明背景</option>
-                            <option value="opaque">不透明</option>
-                            <option value="auto">自动背景</option>
-                        </select>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">图像质量</label>
+                            <select id="qualitySelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="standard" selected>标准画质</option>
+                                <option value="high">高清画质</option>
+                                <option value="ultra">极致画质</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">内容审核</label>
+                            <select id="moderationSelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="auto" selected>自动 (Auto)</option>
+                                <option value="low">低度 (Low)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">输出格式</label>
+                            <select id="outputFormat" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="png" selected>PNG（无损）</option>
+                                <option value="jpeg">JPEG（压缩）</option>
+                                <option value="webp">WebP（现代）</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">背景样式</label>
+                            <select id="bgStyle" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="" selected>默认</option>
+                                <option value="transparent">透明背景</option>
+                                <option value="opaque">不透明</option>
+                                <option value="auto">自动背景</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 
@@ -188,7 +225,7 @@
                 </button>
                 <!-- 批量提交 -->
                 <div class="flex items-center gap-2 mt-3">
-                    <input type="number" id="multiTaskCount" min="2" max="50" value="3" step="1" placeholder="次数"
+                    <input type="number" id="multiTaskCount" min="1" max="50" value="1" step="1" placeholder="次数"
                         class="w-20 bg-surface-container-highest border border-outline-variant rounded-lg px-2 py-1.5 text-xs text-on-surface text-center font-mono font-bold focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
                     <button id="multiTaskBtn" class="flex-1 bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline-variant font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors text-xs">
                         <span class="material-symbols-outlined text-[16px]">playlist_add</span>
@@ -199,6 +236,29 @@
                     </button>
                 </div>
                 <div id="statusBox" class="text-center mt-4 text-xs font-medium text-primary h-4"></div>
+
+                <section id="generationDebugPanel" class="mt-4 rounded-2xl border border-outline-variant bg-surface-container shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
+                        <div class="min-w-0">
+                            <div class="text-[11px] font-bold tracking-widest text-primary uppercase">Generation Debug</div>
+                            <div id="generationDebugSummary" class="text-xs text-on-surface-variant mt-1">等待生成请求...</div>
+                        </div>
+                        <div id="generationDebugActions" class="flex items-center gap-2 shrink-0">
+                            <button id="generationDebugCopyBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[15px]">content_copy</span>
+                                复制全部
+                            </button>
+                            <button id="generationDebugClearBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors">
+                                清空日志
+                            </button>
+                        </div>
+                    </div>
+                    <div id="generationDebugList" class="max-h-[420px] overflow-auto custom-scrollbar p-3 space-y-2">
+                        <div id="generationDebugEmpty" class="rounded-xl border border-dashed border-outline-variant px-4 py-6 text-center text-xs text-on-surface-variant">
+                            这里会显示本次生成链路的详细调试日志
+                        </div>
+                    </div>
+                </section>
             </div>
         </aside>
 

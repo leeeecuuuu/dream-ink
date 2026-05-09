@@ -10,7 +10,7 @@ import { $, base64ToBlob, urlToFile } from './utils/helpers.js';
 import { state } from './state/app-state.js';
 import { showToast, overrideAlert } from './ui/toast.js';
 import { initTheme } from './ui/theme.js';
-import { initEngine, syncModelInput, updatePreview } from './ui/engine.js';
+import { initEngine, switchEngine, syncModelInput, updatePreview } from './ui/engine.js';
 import { saveLib } from './ui/library.js';
 import { initLightbox } from './ui/lightbox.js';
 import { initModals } from './ui/modals.js';
@@ -18,7 +18,7 @@ import { initMobile } from './ui/mobile.js';
 import './ui/preview.js'; // 注册参考图预览的事件监听
 import { initRatioDropdown } from './ui/ratio-dropdown.js';
 import { initMaskEditor } from './ui/mask-editor.js';
-import { fetchModels } from './api/model-fetch.js';
+import { fetchGeminiModels, fetchOpenaiModels } from './api/model-fetch.js';
 import { enqueueTask, enqueueMultiple, clearQueue, executeGeneration } from './core/generator.js';
 import { idb } from './storage/idb.js';
 import JSZip from 'jszip';
@@ -135,11 +135,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (item.aspectRatio) $('ratioSelect').value = item.aspectRatio;
     if (item.quality) $('qualitySelect').value = item.quality;
     if (item.batchCount) { $('batchSelect').value = item.batchCount; }
-    if (item.apiType) { $('apiTypeSelect').value = item.apiType; $('apiTypeSelect').dispatchEvent(new Event('change')); }
+    // 关键：导入历史参数时必须通过 switchEngine 同步全链路状态
+    // （state.currentEngine / apiTypeSelect / UI 激活态 / 参数面板）
+    if (item.apiType) {
+      const targetEngine = item.apiType === 'openai' ? 'openai' : 'gemini';
+      switchEngine(targetEngine, true);
+    }
+
+    // 关键：模型回填按当前 provider 写入新字段（modelGemini/modelOpenai），
+    // 避免写入旧桥接字段导致“显示是 Banana，实际走 GPT”这类错位。
     if (item.model) {
-      const s = $('modelSelect'), inp = $('modelInput');
-      Array.from(s?.options || []).some(o => o.value === item.model) && s?.style.display !== 'none'
-        ? s.value = item.model : inp.value = item.model;
+      const apiType = $('apiTypeSelect')?.value || 'gemini';
+      const targetInputId = apiType === 'openai' ? 'modelOpenai' : 'modelGemini';
+      const modelInput = $(targetInputId);
+      if (modelInput) {
+        modelInput.value = item.model;
+        localStorage.setItem(`nanscript_${targetInputId}`, item.model);
+      }
+      syncModelInput();
+      updatePreview();
     }
 
     state.selectedFiles = [];
@@ -226,7 +240,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ========== 主操作按钮绑定 ==========
-  $('fetchModelsBtn').onclick = fetchModels;
+  const fetchGeminiModelsBtn = $('fetchGeminiModelsBtn');
+  if (fetchGeminiModelsBtn) fetchGeminiModelsBtn.onclick = fetchGeminiModels;
+  const fetchOpenaiModelsBtn = $('fetchOpenaiModelsBtn');
+  if (fetchOpenaiModelsBtn) fetchOpenaiModelsBtn.onclick = fetchOpenaiModels;
   // 生成中点击 → 终止；空闲时点击 → 入队
   $('runBtn').onclick = () => {
     if (state.isGenerating) {
@@ -239,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const multiTaskBtn = $('multiTaskBtn');
   if (multiTaskBtn) multiTaskBtn.onclick = () => {
-    const count = Math.max(2, Math.min(parseInt($('multiTaskCount').value) || 3, 50));
+    const count = Math.max(1, Math.min(parseInt($('multiTaskCount').value) || 1, 50));
     enqueueMultiple(count);
     $('clearQueueBtn').classList.remove('hidden');
   };

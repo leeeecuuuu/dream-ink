@@ -16,6 +16,7 @@
  */
 
 import { $, ls } from '../utils/helpers.js';
+import { normalizeApiConfig, setApiConfig } from '../api/api-config.js';
 import { el, icon } from '../utils/dom.js';
 import { idb } from './idb.js';
 import { state } from '../state/app-state.js';
@@ -29,10 +30,18 @@ const SYNC_FILES = [
     key: 'config',
     filename: 'dreamink_config.json',
     getLocal: () => ({
-      baseUrl: $('baseUrl')?.value || '',
-      apiKey: $('apiKey')?.value || '',
+      geminiBaseUrl: $('geminiBaseUrl')?.value || '',
+      geminiApiKey: $('geminiApiKey')?.value || '',
+      openaiBaseUrl: $('openaiBaseUrl')?.value || '',
+      openaiApiKey: $('openaiApiKey')?.value || '',
       modelGemini: $('modelGemini')?.value || '',
       modelOpenai: $('modelOpenai')?.value || '',
+      customModelsGemini: $('customModelsGemini')?.value || '',
+      customModelsOpenai: $('customModelsOpenai')?.value || '',
+      bananaApiFormat: $('bananaApiFormat')?.value || 'openai',
+      gptApiFormat: $('gptApiFormat')?.value || 'images',
+      moderationSelect: $('moderationSelect')?.value || 'auto',
+      apiProfiles: Array.isArray(state.apiProfiles) ? state.apiProfiles : [],
       currentEngine: ls('nanscript_currentEngine') || 'gemini',
     }),
   },
@@ -257,10 +266,16 @@ export const webdav = {
     try {
       const remote = await this.downloadFile('dreamink_config.json');
       if (remote) {
-        if (remote.baseUrl && $('baseUrl')) { $('baseUrl').value = remote.baseUrl; ls('nanscript_baseUrl', remote.baseUrl); }
-        if (remote.apiKey && $('apiKey')) { $('apiKey').value = remote.apiKey; ls('nanscript_apiKey', remote.apiKey); }
+        setApiConfig('gemini', normalizeApiConfig(remote, 'gemini'));
+        setApiConfig('openai', normalizeApiConfig(remote, 'openai'));
         if (remote.modelGemini && $('modelGemini')) { $('modelGemini').value = remote.modelGemini; ls('nanscript_modelGemini', remote.modelGemini); }
         if (remote.modelOpenai && $('modelOpenai')) { $('modelOpenai').value = remote.modelOpenai; ls('nanscript_modelOpenai', remote.modelOpenai); }
+        if (Object.prototype.hasOwnProperty.call(remote, 'customModelsGemini') && $('customModelsGemini')) { $('customModelsGemini').value = remote.customModelsGemini; ls('nanscript_customModelsGemini', remote.customModelsGemini); }
+        if (Object.prototype.hasOwnProperty.call(remote, 'customModelsOpenai') && $('customModelsOpenai')) { $('customModelsOpenai').value = remote.customModelsOpenai; ls('nanscript_customModelsOpenai', remote.customModelsOpenai); }
+        if (Object.prototype.hasOwnProperty.call(remote, 'bananaApiFormat') && $('bananaApiFormat')) { $('bananaApiFormat').value = remote.bananaApiFormat; ls('nanscript_bananaApiFormat', remote.bananaApiFormat); }
+        if (Object.prototype.hasOwnProperty.call(remote, 'gptApiFormat') && $('gptApiFormat')) { $('gptApiFormat').value = remote.gptApiFormat; ls('nanscript_gptApiFormat', remote.gptApiFormat); }
+        if (Object.prototype.hasOwnProperty.call(remote, 'moderationSelect') && $('moderationSelect')) { $('moderationSelect').value = remote.moderationSelect; ls('nanscript_moderationSelect', remote.moderationSelect); }
+        if (Array.isArray(remote.apiProfiles)) { state.apiProfiles = remote.apiProfiles; ls('nanscript_api_profiles', JSON.stringify(remote.apiProfiles)); }
         if (remote.currentEngine) ls('nanscript_currentEngine', remote.currentEngine);
         if (callbacks.syncModelInput) callbacks.syncModelInput();
         if (callbacks.updatePreview) callbacks.updatePreview();

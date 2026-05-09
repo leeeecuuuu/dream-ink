@@ -15,10 +15,12 @@ import { bus } from '../utils/event-bus.js';
  * @returns {string} 模型名称
  */
 export function getModel() {
-  if (state.currentEngine === 'openai') {
-    return $('modelOpenai')?.value?.trim() || PROVIDER_DEFAULTS.openai.model;
-  }
-  return $('modelGemini')?.value?.trim() || PROVIDER_DEFAULTS.gemini.model;
+  const engineKey = state.currentEngine === 'openai' ? 'openai' : 'gemini';
+  const inputId = engineKey === 'openai' ? 'modelOpenai' : 'modelGemini';
+  const fallback = PROVIDER_DEFAULTS[engineKey].model;
+  const raw = $(inputId)?.value;
+  const val = typeof raw === 'string' ? raw.trim() : '';
+  return val || fallback;
 }
 
 /**
@@ -36,20 +38,33 @@ export function updatePreview() {
   const r = $('ratioSelect');
   const q = $('qualitySelect');
   const b = $('batchSelect');
-  if (!r || !q || !b) return;
+  const bananaRatio = $('bananaAspectRatio');
+  const bananaSize = $('bananaImageSize');
+  if (!b) return;
 
   syncModelInput();
 
   const preview = $('paramPreview');
   if (preview) {
-    preview.textContent = `${r.value || 'Auto'} | ${
-      q.options[q.selectedIndex]?.text.split(' ')[0] || 'Standard'
-    } | x${b.value} | ${getModel() || 'No Model'}`;
+    if (state.currentEngine === 'openai') {
+      preview.textContent = `${r?.value || 'Auto'} | ${
+        q?.options[q.selectedIndex]?.text.split(' ')[0] || 'Standard'
+      } | x${b.value} | ${getModel() || 'No Model'}`;
+    } else {
+      preview.textContent = `${bananaRatio?.value || '1:1'} | ${bananaSize?.value || '1K'} | x${b.value} | ${getModel() || 'No Model'}`;
+    }
   }
 
   // 同步引擎提示文字
   const hint = $('engineModelHintText');
   if (hint) hint.textContent = `当前模型: ${getModel()}`;
+}
+
+function syncEngineParamPanels(engineKey) {
+  const bananaPanel = $('bananaParamsPanel');
+  const gptPanel = $('gptParamsPanel');
+  if (bananaPanel) bananaPanel.classList.toggle('hidden', engineKey !== 'gemini');
+  if (gptPanel) gptPanel.classList.toggle('hidden', engineKey !== 'openai');
 }
 
 /**
@@ -105,7 +120,11 @@ export function switchEngine(engineKey, silent = false) {
   const hint = $('engineModelHintText');
   if (hint) hint.textContent = `当前模型: ${getModel()}`;
 
+  // 切换参数面板
+  syncEngineParamPanels(engineKey);
+
   bus.emit('preview:update');
+  if (!silent) bus.emit('localConfig:save');
   if (!silent) showToast(`已切换至 ${cfg.label}`);
 
   // 防改写开关：仅 OpenAI 引擎时显示
@@ -165,6 +184,9 @@ export function initEngine() {
 
   const hint = $('engineModelHintText');
   if (hint) hint.textContent = `当前模型: ${getModel()}`;
+
+  // 初始化参数面板显示
+  syncEngineParamPanels(eng);
 
   // 展示/隐藏防改写开关
   const guardLabel = $('rewriteGuardLabel');

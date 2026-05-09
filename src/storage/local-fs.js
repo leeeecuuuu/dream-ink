@@ -9,7 +9,10 @@
  *  - 使用能力检测而非屏幕宽度判断
  */
 
+import { normalizeApiConfig, setApiConfig } from '../api/api-config.js';
 import { $ , ls } from '../utils/helpers.js';
+import { state } from '../state/app-state.js';
+import { switchEngine } from '../ui/engine.js';
 import { idb } from './idb.js';
 import { supportsFileSystemAccess } from '../utils/feature-detect.js';
 
@@ -63,8 +66,10 @@ export const localFS = {
   /**
    * 弹出系统文件夹选择器，绑定本地文件夹
    * @param {Function} showToast - Toast 通知回调
+   * @param {Function} syncModelInput - 模型输入同步回调
+   * @param {Function} updatePreview - 预览更新回调
    */
-  async pick(showToast) {
+  async pick(showToast, syncModelInput, updatePreview) {
     if (!this._supported) return;
     try {
       this.handle = await window.showDirectoryPicker({
@@ -73,7 +78,16 @@ export const localFS = {
       });
       await idb.set('nanscript_fs_handle', this.handle);
       this._updateUI();
-      // 立即将当前 API 配置写入本地文件夹
+
+      // 如果文件夹中已有配置，优先读取并应用，避免首次绑定时用当前空配置覆盖已有同步数据。
+      const existingConfig = await this.loadJSON('config.json', null);
+      if (existingConfig) {
+        await this.loadConfig(syncModelInput, updatePreview);
+        showToast(`✅ 已绑定本地文件夹并同步配置：${this.handle.name}`);
+        return;
+      }
+
+      // 新文件夹没有 config.json 时，才立即将当前 API 配置写入本地文件夹。
       try {
         await this.saveConfig();
       } catch (e) {
@@ -203,13 +217,39 @@ export const localFS = {
    */
   async saveConfig() {
     const cfg = {
-      baseUrl: $('baseUrl')?.value || '',
-      apiKey: $('apiKey')?.value || '',
+      geminiBaseUrl: $('geminiBaseUrl')?.value || '',
+      geminiApiKey: $('geminiApiKey')?.value || '',
+      openaiBaseUrl: $('openaiBaseUrl')?.value || '',
+      openaiApiKey: $('openaiApiKey')?.value || '',
       modelGemini: $('modelGemini')?.value || '',
       modelOpenai: $('modelOpenai')?.value || '',
+      customModelsGemini: $('customModelsGemini')?.value || '',
+      customModelsOpenai: $('customModelsOpenai')?.value || '',
+      bananaApiFormat: $('bananaApiFormat')?.value || 'openai',
+      gptApiFormat: $('gptApiFormat')?.value || 'images',
+      moderationSelect: $('moderationSelect')?.value || 'auto',
+      apiProfiles: Array.isArray(state.apiProfiles) ? state.apiProfiles : [],
       currentEngine: ls('nanscript_currentEngine') || 'gemini',
     };
     await this.saveJSON('config.json', cfg);
+  },
+
+  /**
+   * 刷新 API 配置预设下拉框
+   * @private
+   */
+  _renderApiProfilesSelect() {
+    const profSel = $('apiProfileSelect');
+    if (!profSel) return;
+    const current = profSel.value;
+    profSel.innerHTML = '<option value="">-- 选择配置 --</option>';
+    state.apiProfiles.forEach(p => {
+      if (!p?.name) return;
+      const o = document.createElement('option');
+      o.value = o.textContent = p.name;
+      profSel.appendChild(o);
+    });
+    if (current && state.apiProfiles.some(p => p.name === current)) profSel.value = current;
   },
 
   /**
@@ -220,23 +260,46 @@ export const localFS = {
   async loadConfig(syncModelInput, updatePreview) {
     const cfg = await this.loadJSON('config.json', null);
     if (!cfg) return;
-    if (cfg.baseUrl && $('baseUrl')) {
-      $('baseUrl').value = cfg.baseUrl;
-      ls('nanscript_baseUrl', cfg.baseUrl);
-    }
-    if (cfg.apiKey && $('apiKey')) {
-      $('apiKey').value = cfg.apiKey;
-      ls('nanscript_apiKey', cfg.apiKey);
-    }
-    if (cfg.modelGemini && $('modelGemini')) {
+    setApiConfig('gemini', normalizeApiConfig(cfg, 'gemini'));
+    setApiConfig('openai', normalizeApiConfig(cfg, 'openai'));
+    if (Object.prototype.hasOwnProperty.call(cfg, 'modelGemini') && $('modelGemini')) {
       $('modelGemini').value = cfg.modelGemini;
       ls('nanscript_modelGemini', cfg.modelGemini);
     }
-    if (cfg.modelOpenai && $('modelOpenai')) {
+    if (Object.prototype.hasOwnProperty.call(cfg, 'modelOpenai') && $('modelOpenai')) {
       $('modelOpenai').value = cfg.modelOpenai;
       ls('nanscript_modelOpenai', cfg.modelOpenai);
     }
-    if (cfg.currentEngine) ls('nanscript_currentEngine', cfg.currentEngine);
+    if (Object.prototype.hasOwnProperty.call(cfg, 'customModelsGemini') && $('customModelsGemini')) {
+      $('customModelsGemini').value = cfg.customModelsGemini;
+      ls('nanscript_customModelsGemini', cfg.customModelsGemini);
+    }
+    if (Object.prototype.hasOwnProperty.call(cfg, 'customModelsOpenai') && $('customModelsOpenai')) {
+      $('customModelsOpenai').value = cfg.customModelsOpenai;
+      ls('nanscript_customModelsOpenai', cfg.customModelsOpenai);
+    }
+    if (Object.prototype.hasOwnProperty.call(cfg, 'bananaApiFormat') && $('bananaApiFormat')) {
+      $('bananaApiFormat').value = cfg.bananaApiFormat;
+      ls('nanscript_bananaApiFormat', cfg.bananaApiFormat);
+    }
+    if (Object.prototype.hasOwnProperty.call(cfg, 'gptApiFormat') && $('gptApiFormat')) {
+      $('gptApiFormat').value = cfg.gptApiFormat;
+      ls('nanscript_gptApiFormat', cfg.gptApiFormat);
+    }
+    if (Object.prototype.hasOwnProperty.call(cfg, 'moderationSelect') && $('moderationSelect')) {
+      $('moderationSelect').value = cfg.moderationSelect;
+      ls('nanscript_moderationSelect', cfg.moderationSelect);
+    }
+    if (Array.isArray(cfg.apiProfiles)) {
+      state.apiProfiles = cfg.apiProfiles;
+      ls('nanscript_api_profiles', JSON.stringify(cfg.apiProfiles));
+      this._renderApiProfilesSelect();
+    }
+    if (cfg.currentEngine) {
+      state.currentEngine = cfg.currentEngine;
+      ls('nanscript_currentEngine', cfg.currentEngine);
+      switchEngine(cfg.currentEngine, true);
+    }
     // 同步 UI
     if (typeof syncModelInput === 'function') syncModelInput();
     if (typeof updatePreview === 'function') updatePreview();

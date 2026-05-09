@@ -27,13 +27,49 @@ export const ApiConfigModal = `
                 <!-- 接口信息 -->
                 <div class="bg-surface-container border border-outline-variant p-4 rounded-xl space-y-4">
                     <h4 class="text-sm font-bold text-primary mb-1">服务设定</h4>
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">接口地址</label>
-                        <input type="text" id="baseUrl" placeholder="例如：https://generativelanguage.googleapis.com" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+
+                    <!-- Banana · Gemini 独立配置 -->
+                    <div class="space-y-3 p-3 rounded-lg bg-surface-container-lowest border border-primary/15">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
+                                <span class="material-symbols-outlined text-[11px]">auto_awesome</span> Banana · Gemini
+                            </span>
+                            <span class="text-[10px] text-outline">独立接口配置</span>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">接口地址</label>
+                            <input type="text" id="geminiBaseUrl" placeholder="例如：https://generativelanguage.googleapis.com" class="w-full bg-surface-container border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">密钥 (API Key)</label>
+                            <input type="password" id="geminiApiKey" placeholder="AIzaSy..." class="w-full bg-surface-container border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+                        </div>
+                        <div class="space-y-1.5 mt-2">
+                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">Banana 请求格式</label>
+                            <select id="bananaApiFormat" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-xs text-on-surface py-2 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="openai" selected>OpenAI 兼容（推荐，第三方中转 /v1/images 或 /v1/chat/completions）</option>
+                                <option value="gemini">Gemini 原生（仅直连原生接口时使用，models/:generateContent）</option>
+                            </select>
+                            <p class="text-[10px] text-outline leading-relaxed">Banana 默认按第三方 OpenAI 兼容中转处理；只有在你直连 Gemini 原生接口时才需要切换为 Gemini 原生。</p>
+                        </div>
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">密钥 (API Key)</label>
-                        <input type="password" id="apiKey" placeholder="sk-AIzaSy..." class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+
+                    <!-- GPT Image-2 独立配置 -->
+                    <div class="space-y-3 p-3 rounded-lg bg-surface-container-lowest border border-success/15">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-success/10 text-success px-2 py-0.5 rounded-full border border-success/20">
+                                <span class="material-symbols-outlined text-[11px]">image</span> GPT Image-2
+                            </span>
+                            <span class="text-[10px] text-outline">独立接口配置</span>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">接口地址</label>
+                            <input type="text" id="openaiBaseUrl" placeholder="例如：https://api.openai.com" class="w-full bg-surface-container border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">密钥 (API Key)</label>
+                            <input type="password" id="openaiApiKey" placeholder="sk-..." class="w-full bg-surface-container border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
+                        </div>
                     </div>
                     <!-- 隐藏的 apiTypeSelect，由引擎切换器驱动，不再暴露给用户 -->
                     <select id="apiTypeSelect" class="hidden">
@@ -59,42 +95,53 @@ export const ApiConfigModal = `
                 <div class="bg-surface-container border border-outline-variant p-4 rounded-xl space-y-4">
                     <div class="flex items-center justify-between mb-1">
                         <h4 class="text-sm font-bold text-primary">引擎模型配置</h4>
-                        <button id="fetchModelsBtn" class="bg-surface-container-highest hover:bg-primary/10 text-on-surface hover:text-primary border border-outline-variant px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
-                            <div class="spinner"></div>
-                            <span class="material-symbols-outlined text-[14px] fetch-text-icon">sync</span>
-                            <span class="fetch-text">获取模型列表</span>
-                        </button>
                     </div>
-                    <div id="modelStatus" class="text-[10px] text-on-surface-variant -mt-2">填入模型名称，或点击右上角按钮自动获取</div>
+                    <div class="text-[10px] text-on-surface-variant -mt-2">两个引擎使用各自的 API 配置、模型列表与模型选择，互不影响。</div>
 
                     <!-- Banana · Gemini -->
-                    <div class="space-y-1.5">
-                        <div class="flex items-center gap-2">
-                            <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
-                                <span class="material-symbols-outlined text-[11px]">auto_awesome</span> Banana · Gemini
-                            </span>
-                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">模型</label>
+                    <div class="space-y-2 p-3 rounded-lg bg-surface-container-lowest border border-primary/15">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
+                                    <span class="material-symbols-outlined text-[11px]">auto_awesome</span> Banana · Gemini
+                                </span>
+                                <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">模型</label>
+                            </div>
+                            <button id="fetchGeminiModelsBtn" class="bg-surface-container-highest hover:bg-primary/10 text-on-surface hover:text-primary border border-outline-variant px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0">
+                                <div class="spinner"></div>
+                                <span class="material-symbols-outlined text-[14px] fetch-text-icon">sync</span>
+                                <span class="fetch-text">获取 Banana 模型</span>
+                            </button>
                         </div>
+                        <div id="modelGeminiStatus" class="text-[10px] text-on-surface-variant">填入 Banana 模型名称，或单独获取 Gemini 模型列表</div>
                         <!-- 获取列表后显示下拉，默认显示文本框 -->
                         <select id="modelGeminiSelect" class="hidden w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs"></select>
                         <input type="text" id="modelGemini" placeholder="gemini-2.0-flash-preview-image-generation"
-                            class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs">
-                        <input type="text" id="customModelsGemini" placeholder="自定义下拉模型库 (多个用英文逗号分隔，留空则获取全量模型)" title="在此填入常用的固定模型（如 gemini-2.0-flash, gemini-1.5-pro），点击右上角【获取模型列表】后，下拉框将只显示你填写的这些模型。不再需要从几十个列表里找。" class="w-full bg-surface-container-highest border border-outline-variant rounded-md px-3 py-1.5 text-[10px] text-on-surface placeholder:text-outline/60 focus:border-primary mt-1">
+                            class="w-full bg-surface-container border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs">
+                        <input type="text" id="customModelsGemini" placeholder="Banana 自定义下拉模型库 (多个用英文逗号分隔，留空则获取全量模型)" title="在此填入 Banana 常用的固定模型（如 gemini-2.0-flash, gemini-1.5-pro），点击本区【获取 Banana 模型】后，下拉框将只显示你填写的这些模型。" class="w-full bg-surface-container-highest border border-outline-variant rounded-md px-3 py-1.5 text-[10px] text-on-surface placeholder:text-outline/60 focus:border-primary mt-1">
                     </div>
 
                     <!-- GPT Image-2 -->
-                    <div class="space-y-1.5">
-                        <div class="flex items-center gap-2">
-                            <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-success/10 text-success px-2 py-0.5 rounded-full border border-success/20">
-                                <span class="material-symbols-outlined text-[11px]">image</span> GPT Image-2
-                            </span>
-                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">模型</label>
+                    <div class="space-y-2 p-3 rounded-lg bg-surface-container-lowest border border-success/15">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-success/10 text-success px-2 py-0.5 rounded-full border border-success/20">
+                                    <span class="material-symbols-outlined text-[11px]">image</span> GPT Image-2
+                                </span>
+                                <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">模型</label>
+                            </div>
+                            <button id="fetchOpenaiModelsBtn" class="bg-surface-container-highest hover:bg-success/10 text-on-surface hover:text-success border border-outline-variant px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0">
+                                <div class="spinner"></div>
+                                <span class="material-symbols-outlined text-[14px] fetch-text-icon">sync</span>
+                                <span class="fetch-text">获取 GPT 模型</span>
+                            </button>
                         </div>
+                        <div id="modelOpenaiStatus" class="text-[10px] text-on-surface-variant">填入 GPT Image-2 模型名称，或单独获取 OpenAI 兼容模型列表</div>
                         <!-- 获取列表后显示下拉，默认显示文本框 -->
                         <select id="modelOpenaiSelect" class="hidden w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs"></select>
                         <input type="text" id="modelOpenai" placeholder="gpt-image-1"
-                            class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs">
-                        <input type="text" id="customModelsOpenai" placeholder="自定义下拉模型库 (多个用英文逗号分隔，留空则获取全量模型)" title="在此填入常用的固定模型（如 gpt-4o, dall-e-3），点击右上角【获取模型列表】后，下拉框将只显示你填写的这些模型。不再需要从几十个列表里找。" class="w-full bg-surface-container-highest border border-outline-variant rounded-md px-3 py-1.5 text-[10px] text-on-surface placeholder:text-outline/60 focus:border-primary mt-1">
+                            class="w-full bg-surface-container border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs">
+                        <input type="text" id="customModelsOpenai" placeholder="GPT 自定义下拉模型库 (多个用英文逗号分隔，留空则获取全量模型)" title="在此填入 GPT / OpenAI 常用的固定模型（如 gpt-image-1, gpt-4o, dall-e-3），点击本区【获取 GPT 模型】后，下拉框将只显示你填写的这些模型。" class="w-full bg-surface-container-highest border border-outline-variant rounded-md px-3 py-1.5 text-[10px] text-on-surface placeholder:text-outline/60 focus:border-primary mt-1">
                     </div>
                 </div>
 

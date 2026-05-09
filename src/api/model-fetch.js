@@ -1,168 +1,272 @@
 /**
  * model-fetch.js — 模型列表获取模块
  *
- * 同时拉取 Gemini 和 OpenAI 两个引擎的模型列表，
- * 并填充到对应的下拉选择框中。
+ * Banana(Gemini) 与 GPT Image-2(OpenAI) 使用独立的 API 配置、
+ * 独立的获取按钮、独立的状态提示和独立的模型下拉框。
  */
 
-import { $, ls } from '../utils/helpers.js';
-import { syncModelInput, updatePreview } from '../ui/engine.js';
+import { syncModelInput, updatePreview } from "../ui/engine.js";
+import { $, ls } from "../utils/helpers.js";
+import { getApiConfig } from "./api-config.js";
+
+const MODEL_FETCH_CONFIG = {
+  gemini: {
+    label: "Banana",
+    buttonId: "fetchGeminiModelsBtn",
+    statusId: "modelGeminiStatus",
+    selectId: "modelGeminiSelect",
+    inputId: "modelGemini",
+    customId: "customModelsGemini",
+    storageKey: "nanscript_modelGemini",
+    emptyConfigMessage: "缺少 Banana API 配置",
+    preferredPattern: /gemini|image/i,
+  },
+  openai: {
+    label: "GPT Image-2",
+    buttonId: "fetchOpenaiModelsBtn",
+    statusId: "modelOpenaiStatus",
+    selectId: "modelOpenaiSelect",
+    inputId: "modelOpenai",
+    customId: "customModelsOpenai",
+    storageKey: "nanscript_modelOpenai",
+    emptyConfigMessage: "缺少 GPT Image-2 API 配置",
+    preferredPattern: /gpt|dall|mj|midjourney|image|claude|flux/i,
+  },
+};
+
+const parseCustomModels = (str = "") =>
+  str
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+const uniqueModels = (models = []) => [...new Set(models.filter(Boolean))];
+
+function parseGeminiModelList(data = {}) {
+  const googleModels = Array.isArray(data.models) ? data.models : [];
+  const openaiModels = Array.isArray(data.data) ? data.data : [];
+  return uniqueModels(
+    [...googleModels, ...openaiModels]
+      .map((m) => (m.name || m.id || "").replace(/^models\//, ""))
+      .filter(Boolean),
+  );
+}
+
+async function fetchJson(url, options = {}) {
+  const res = await fetch(url, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      data.error?.message || data.message || `HTTP ${res.status}`,
+    );
+  }
+  return data;
+}
 
 /**
- * 获取两个引擎的模型列表
+ * 填充某个引擎自己的 select 下拉框，并同步该引擎自己的 input。
+ * @param {'gemini'|'openai'} provider
+ * @param {string[]} models
  */
-export async function fetchModels() {
-  const base = $('baseUrl').value.trim();
-  const key = $('apiKey').value.trim();
-  const st = $('modelStatus');
-  const btn = $('fetchModelsBtn');
+function fillProviderSelect(provider, models) {
+  const cfg = MODEL_FETCH_CONFIG[provider];
+  const sel = $(cfg.selectId);
+  const inp = $(cfg.inputId);
+  if (!sel || !inp) return;
 
-  if (!key || !base) {
-    st.className = 'model-status fail';
-    st.textContent = !key ? '❌ 缺少 API Key' : '❌ 缺少 Base URL';
-    return;
+  sel.innerHTML = "";
+  models.forEach((name) => {
+    const o = document.createElement("option");
+    o.value = o.textContent = name;
+    sel.appendChild(o);
+  });
+
+  const curVal = inp.value?.trim();
+  const fallback =
+    provider === "openai"
+      ? "gpt-image-1"
+      : "gemini-2.0-flash-preview-image-generation";
+  const options = Array.from(sel.options);
+  if (curVal && options.some((o) => o.value === curVal)) {
+    sel.value = curVal;
+  } else {
+    const preferred = options.find((o) => cfg.preferredPattern.test(o.value));
+    if (preferred) sel.value = preferred.value;
   }
 
-  btn.classList.add('loading');
-  btn.disabled = true;
-  st.className = 'model-status';
-  st.textContent = '正在获取模型列表...';
-
-  /**
-   * 填充 select 下拉框并同步到 input
-   * @param {HTMLSelectElement} sel - 下拉框
-   * @param {HTMLInputElement} inp - 对应的文本输入框
-   * @param {string} lsKey - localStorage 键名
-   * @param {string[]} models - 模型名称列表
-   * @param {string} curVal - 当前值
-   */
-  const fillSelect = (sel, inp, lsKey, models, curVal) => {
-    sel.innerHTML = '';
-    models.forEach((name) => {
-      const o = document.createElement('option');
-      o.value = o.textContent = name;
-      sel.appendChild(o);
-    });
-    // 优先恢复已填值，否则优先选 image 相关
-    if (curVal && Array.from(sel.options).some((o) => o.value === curVal)) {
-      sel.value = curVal;
-    } else {
-      const imgOpt = Array.from(sel.options).find((o) => o.value.includes('image'));
-      if (imgOpt) sel.value = imgOpt.value;
-    }
-    if (inp) {
-      inp.value = sel.value;
-      ls(lsKey, sel.value);
-    }
-    inp?.classList.add('hidden');
-    sel.classList.remove('hidden');
-    sel.onchange = () => {
-      if (inp) {
-        inp.value = sel.value;
-        ls(lsKey, sel.value);
-      }
-      syncModelInput();
-      updatePreview();
-    };
+  const selectedVal = (sel.value || "").trim();
+  if (selectedVal) {
+    inp.value = selectedVal;
+    ls(cfg.storageKey, selectedVal);
+  } else if (!curVal) {
+    inp.value = fallback;
+    ls(cfg.storageKey, fallback);
+  }
+  inp.classList.add("hidden");
+  sel.classList.remove("hidden");
+  sel.onchange = () => {
+    const nextVal = (sel.value || "").trim();
+    if (!nextVal) return;
+    inp.value = nextVal;
+    ls(cfg.storageKey, nextVal);
     syncModelInput();
     updatePreview();
   };
-
-  // 智能处理 URL：兼容带有或不带有 /v1 的 base URL
-  const cleanBase = base.replace(/\/+$/, '');
-  const baseGemini = cleanBase.replace(/\/v1$/, '');
-  const baseOpenAI = cleanBase.endsWith('/v1') ? cleanBase : `${cleanBase}/v1`;
-
-  const customGemini = $('customModelsGemini')?.value?.trim();
-  const customOpenai = $('customModelsOpenai')?.value?.trim();
-  const parseCustom = (str) => str.split(',').map((s) => s.trim()).filter(Boolean);
-
-  const fetchGemini = customGemini
-    ? Promise.resolve(parseCustom(customGemini))
-    : fetch(`${baseGemini}/v1beta/models?key=${key}`, {
-        headers: { 'Content-Type': 'application/json' },
-      })
-        .then((r) => {
-          if (!r.ok) throw new Error(`Gemini HTTP ${r.status}`);
-          return r.json();
-        })
-        .then((d) => {
-          const list = (d.models || []).map((m) => {
-            let name = (m.name || m.id).replace('models/', '');
-            return name;
-          });
-          // 排序：包含 gemini 的排在前面
-          return list.sort((a, b) => {
-            const aMatch = a.toLowerCase().includes('gemini');
-            const bMatch = b.toLowerCase().includes('gemini');
-            if (aMatch && !bMatch) return -1;
-            if (!aMatch && bMatch) return 1;
-            return a.localeCompare(b);
-          });
-        });
-
-  const fetchOpenai = customOpenai
-    ? Promise.resolve(parseCustom(customOpenai))
-    : fetch(`${baseOpenAI}/models`, {
-        headers: { Authorization: `Bearer ${key}` },
-      })
-        .then((r) => {
-          if (!r.ok) throw new Error(`OpenAI HTTP ${r.status}`);
-          return r.json();
-        })
-        .then((d) => {
-          const list = (d.data || []).map((m) => {
-            let name = m.id || m.name;
-            return name;
-          });
-          // 排序：包含特定关键字（gpt, dall, midjourney, mj, image, claude）的排在前面
-          const isImageModel = (n) => /gpt|dall|mj|midjourney|image|claude|flux/i.test(n);
-          return list.sort((a, b) => {
-            const aMatch = isImageModel(a);
-            const bMatch = isImageModel(b);
-            if (aMatch && !bMatch) return -1;
-            if (!aMatch && bMatch) return 1;
-            return a.localeCompare(b);
-          });
-        });
-
-  const results = await Promise.allSettled([fetchGemini, fetchOpenai]);
-
-  const [geminiRes, openaiRes] = results;
-  const msgs = [];
-
-  if (geminiRes.status === 'fulfilled' && geminiRes.value.length) {
-    fillSelect(
-      $('modelGeminiSelect'),
-      $('modelGemini'),
-      'nanscript_modelGemini',
-      geminiRes.value,
-      $('modelGemini')?.value?.trim()
-    );
-    msgs.push(`Banana: ${geminiRes.value.length} 个模型`);
-  } else {
-    msgs.push(`Banana: ❌ ${geminiRes.reason?.message || '获取失败'}`);
-    $('modelGemini')?.classList.remove('hidden');
-    $('modelGeminiSelect')?.classList.add('hidden');
-  }
-
-  if (openaiRes.status === 'fulfilled' && openaiRes.value.length) {
-    fillSelect(
-      $('modelOpenaiSelect'),
-      $('modelOpenai'),
-      'nanscript_modelOpenai',
-      openaiRes.value,
-      $('modelOpenai')?.value?.trim()
-    );
-    msgs.push(`Image-2: ${openaiRes.value.length} 个模型`);
-  } else {
-    msgs.push(`Image-2: ❌ ${openaiRes.reason?.message || '获取失败'}`);
-    $('modelOpenai')?.classList.remove('hidden');
-    $('modelOpenaiSelect')?.classList.add('hidden');
-  }
-
-  st.className = 'model-status ok';
-  st.textContent = '✅ ' + msgs.join(' | ');
-  btn.classList.remove('loading');
-  btn.disabled = false;
+  syncModelInput();
+  updatePreview();
 }
+
+async function requestProviderModels(provider) {
+  const apiCfg = getApiConfig(provider);
+  const fetchCfg = MODEL_FETCH_CONFIG[provider];
+  const customModels = $(fetchCfg.customId)?.value?.trim();
+  if (customModels) return parseCustomModels(customModels);
+
+  if (!apiCfg.apiKey || !apiCfg.baseUrl) {
+    throw new Error(fetchCfg.emptyConfigMessage);
+  }
+
+  if (provider === "gemini") {
+    const bananaApiFormat = $("bananaApiFormat")?.value || "openai";
+    const useOpenAICompat = bananaApiFormat !== "gemini";
+    if (useOpenAICompat) {
+      const cleanBase = apiCfg.baseUrl.replace(/\/+$/, "");
+      const base = /\/v1$/i.test(cleanBase) ? cleanBase : `${cleanBase}/v1`;
+      const data = await fetchJson(`${base}/models`, {
+        headers: { Authorization: `Bearer ${apiCfg.apiKey}` },
+      });
+      return (data.data || [])
+        .map((m) => m.id || m.name || "")
+        .filter(Boolean)
+        .sort((a, b) => {
+          const aMatch = MODEL_FETCH_CONFIG.gemini.preferredPattern.test(a);
+          const bMatch = MODEL_FETCH_CONFIG.gemini.preferredPattern.test(b);
+          if (aMatch && !bMatch) return -1;
+          if (!aMatch && bMatch) return 1;
+          return a.localeCompare(b);
+        });
+    }
+
+    const cleanBase = apiCfg.baseUrl.replace(/\/+$/, "");
+    const hasVersion = /\/v1(?:beta)?$/i.test(cleanBase);
+    const preferredBase = hasVersion ? cleanBase : `${cleanBase}/v1beta`;
+    const fallbackBase = /\/v1$/i.test(preferredBase)
+      ? preferredBase.replace(/\/v1$/i, "/v1beta")
+      : "";
+
+    // 兼容两类 Gemini 模型列表接口：
+    // 1. Google 原生格式：GET /v1 或 /v1beta/models?key=xxx，返回 { models: [...] }
+    // 2. 部分以 /v1 结尾的 Gemini 兼容代理：GET /v1/models + Bearer，返回 { data: [...] }
+    const attempts = [
+      {
+        url: `${preferredBase}/models?key=${encodeURIComponent(apiCfg.apiKey)}`,
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiCfg.apiKey,
+        },
+      },
+      {
+        url: `${preferredBase}/models`,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiCfg.apiKey}`,
+          "x-goog-api-key": apiCfg.apiKey,
+        },
+      },
+      ...(fallbackBase
+        ? [
+            {
+              url: `${fallbackBase}/models?key=${encodeURIComponent(apiCfg.apiKey)}`,
+              headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": apiCfg.apiKey,
+              },
+            },
+          ]
+        : []),
+    ];
+
+    const errors = [];
+    for (const attempt of attempts) {
+      try {
+        const data = await fetchJson(attempt.url, { headers: attempt.headers });
+        const models = parseGeminiModelList(data);
+        if (models.length) {
+          return models.sort((a, b) => {
+            const aMatch = a.toLowerCase().includes("gemini");
+            const bMatch = b.toLowerCase().includes("gemini");
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return a.localeCompare(b);
+          });
+        }
+        errors.push("未返回可用模型");
+      } catch (err) {
+        errors.push(err?.message || "请求失败");
+      }
+    }
+
+    throw new Error(`Gemini 模型获取失败：${errors.at(-1) || "请求失败"}`);
+  }
+
+  const cleanBase = apiCfg.baseUrl.replace(/\/+$/, "");
+  const base = /\/v1$/i.test(cleanBase) ? cleanBase : `${cleanBase}/v1`;
+  const data = await fetchJson(`${base}/models`, {
+    headers: { Authorization: `Bearer ${apiCfg.apiKey}` },
+  });
+  return (data.data || [])
+    .map((m) => m.id || m.name || "")
+    .filter(Boolean)
+    .sort((a, b) => {
+      const aMatch = MODEL_FETCH_CONFIG.openai.preferredPattern.test(a);
+      const bMatch = MODEL_FETCH_CONFIG.openai.preferredPattern.test(b);
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+      return a.localeCompare(b);
+    });
+}
+
+/**
+ * 只获取指定引擎的模型列表。
+ * @param {'gemini'|'openai'} provider
+ */
+export async function fetchModels(provider) {
+  const cfg = MODEL_FETCH_CONFIG[provider];
+  if (!cfg) return;
+
+  const st = $(cfg.statusId);
+  const btn = $(cfg.buttonId);
+  const input = $(cfg.inputId);
+  const select = $(cfg.selectId);
+
+  try {
+    btn?.classList.add("loading");
+    if (btn) btn.disabled = true;
+    if (st) {
+      st.className = "text-[10px] text-on-surface-variant";
+      st.textContent = `正在获取 ${cfg.label} 模型列表...`;
+    }
+
+    const models = await requestProviderModels(provider);
+    if (!models.length) throw new Error("未返回可用模型");
+
+    fillProviderSelect(provider, models);
+    if (st) {
+      st.className = "model-status ok text-[10px]";
+      st.textContent = `✅ ${cfg.label}: 已获取 ${models.length} 个模型`;
+    }
+  } catch (err) {
+    input?.classList.remove("hidden");
+    select?.classList.add("hidden");
+    if (st) {
+      st.className = "model-status fail text-[10px]";
+      st.textContent = `❌ ${cfg.label}: ${err?.message || "获取失败"}`;
+    }
+  } finally {
+    btn?.classList.remove("loading");
+    if (btn) btn.disabled = false;
+  }
+}
+
+export const fetchGeminiModels = () => fetchModels("gemini");
+export const fetchOpenaiModels = () => fetchModels("openai");

@@ -13,6 +13,7 @@ import { localFS } from '../storage/local-fs.js';
 import { createGalleryItemDOM } from '../ui/gallery.js';
 import { showToast } from '../ui/toast.js';
 import { bus } from '../utils/event-bus.js';
+import { syncModelInput, updatePreview } from '../ui/engine.js';
 
 export function initDataLoader() {
   // 本地文件夹存储 - 使用能力检测替代 innerWidth
@@ -22,7 +23,7 @@ export function initDataLoader() {
     if (fsSection) fsSection.style.display = 'none';
     if (pickBtn) pickBtn.disabled = true;
   } else {
-    if (pickBtn) pickBtn.onclick = () => localFS.pick(showToast);
+    if (pickBtn) pickBtn.onclick = () => localFS.pick(showToast, syncModelInput, updatePreview);
     if (clearFolderBtnEl) clearFolderBtnEl.onclick = async () => {
       if (!confirm('解除绑定后，将切换回浏览器缓存模式。确定解除吗？')) return;
       await localFS.clear(showToast);
@@ -85,7 +86,7 @@ export function initDataLoader() {
         }
         if (state.selectedFiles.length) bus.emit('selectedFiles:change');
       }
-      await localFS.loadConfig(null, () => bus.emit('preview:update'));
+      await localFS.loadConfig(syncModelInput, updatePreview);
     } else {
       idb.get('nanscript_prompt_lib').then(d => { if (Array.isArray(d) && d.length) state.promptLib = d; }).catch(() => {});
       idb.get('nanscript_history_db').then(d => {
