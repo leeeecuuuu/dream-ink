@@ -1,4 +1,4 @@
-name: Deploy VitePress site to Pages
+name: Deploy DreamInk to GitHub Pages
 
 on:
   push:
@@ -26,13 +26,13 @@ jobs:
         with:
           node-version: 20
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
-      - name: Build with VitePress
-        run: npx vitepress build
+        run: npm ci --legacy-peer-deps
+      - name: Build with Vite
+        run: npm run build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .vitepress/dist
+          path: dist
 
   deploy:
     environment:
