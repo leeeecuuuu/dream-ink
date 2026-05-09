@@ -6,7 +6,7 @@
 
 import '../style.css';
 
-import { $, base64ToBlob, urlToFile } from './utils/helpers.js';
+import { $, base64ToBlob, compressImageFile } from './utils/helpers.js';
 import { state } from './state/app-state.js';
 import { showToast, overrideAlert } from './ui/toast.js';
 import { initTheme } from './ui/theme.js';
@@ -18,9 +18,9 @@ import { initMobile } from './ui/mobile.js';
 import './ui/preview.js'; // 注册参考图预览的事件监听
 import { initRatioDropdown } from './ui/ratio-dropdown.js';
 import { initMaskEditor } from './ui/mask-editor.js';
+import { initHistoryFilters, persistHistoryData } from './ui/history.js';
 import { fetchGeminiModels, fetchOpenaiModels } from './api/model-fetch.js';
 import { enqueueTask, enqueueMultiple, clearQueue, executeGeneration } from './core/generator.js';
-import { idb } from './storage/idb.js';
 import JSZip from 'jszip';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initRatioDropdown();
   initEngine();
   initMaskEditor();
+  initHistoryFilters();
 
   // 2. 表单与持久化数据加载
   initFormPersistence();
@@ -78,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.currentHistoryIdx > -1) {
       if (state.currentDetailMode === 'history') {
         state.historyData.splice(state.currentHistoryIdx, 1);
-        idb.set('nanscript_history_db', state.historyData);
+        persistHistoryData();
         bus.emit('historyData:change');
       } else {
         state.promptLib[state.curFolder].prompts.splice(state.currentHistoryIdx, 1);
@@ -211,10 +212,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // ========== 垫图上传与拖拽 ==========
   const imgInput = $('imageInput');
   if (imgInput) {
-    imgInput.onchange = e => {
+    imgInput.onchange = async e => {
       const nf = Array.from(e.target.files);
-      if (state.selectedFiles.length + nf.length > 10) return alert('最多 10 张！');
-      state.selectedFiles = state.selectedFiles.concat(nf); bus.emit('selectedFiles:change'); e.target.value = '';
+      if (state.selectedFiles.length + nf.length > 10) { e.target.value = ''; return alert('最多 10 张！'); }
+      if (!nf.length) return;
+      try {
+        showToast('正在压缩参考图，尽量保持清晰度...');
+        const compressed = await Promise.all(nf.map(file => compressImageFile(file)));
+        const savedBytes = compressed.reduce((sum, file, i) => sum + Math.max(0, (nf[i]?.size || 0) - (file?.size || 0)), 0);
+        state.selectedFiles = state.selectedFiles.concat(compressed);
+        bus.emit('selectedFiles:change');
+        if (savedBytes > 0) showToast(`参考图已自动压缩，约减少 ${(savedBytes / 1024 / 1024).toFixed(1)}MB`);
+      } catch (err) {
+        console.warn('参考图压缩失败，使用原图', err);
+        state.selectedFiles = state.selectedFiles.concat(nf);
+        bus.emit('selectedFiles:change');
+        showToast('参考图压缩失败，已保留原图', 'error');
+      } finally {
+        e.target.value = '';
+      }
     };
     const panel = imgInput.parentElement;
     if (panel) {
@@ -291,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ========== 历史记录数据操作 ==========
-  $('clearHistoryBtn').onclick = () => { if (confirm('清空所有历史？')) { state.historyData = []; idb.set('nanscript_history_db', state.historyData); bus.emit('historyData:change'); } };
+  $('clearHistoryBtn').onclick = () => { if (confirm('清空所有历史？')) { state.historyData = []; persistHistoryData(); bus.emit('historyData:change'); } };
 
   $('exportImagesBtn').onclick = async () => {
     if (!state.historyData.length) return showToast('无记录可导出', 'error');
@@ -300,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const zip = new JSZip();
       let count = 0;
-      const folder = zip.folder("BanavelAi_生成图");
+      const folder = zip.folder("DreamInk_生成图");
       for (let i = 0; i < state.historyData.length; i++) {
         const item = state.historyData[i];
         const imgSrc = item.fullImage || item.thumb;
@@ -320,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (count === 0) { btn.disabled = false; return showToast('没有可打包的有效图片', 'error'); }
       const content = await zip.generateAsync({ type: "blob" });
       const a = document.createElement('a'); a.href = URL.createObjectURL(content);
-      a.download = `BanavelAi_画作合集_${Date.now()}.zip`;
+      a.download = `DreamInk_画作合集_${Date.now()}.zip`;
       document.body.appendChild(a); a.click(); setTimeout(() => document.body.removeChild(a), 100);
       showToast(`🎉 成功打包 ${count} 张图片！`);
     } catch (e) { console.error(e); showToast('打包过程出错', 'error'); }
@@ -343,19 +359,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const imp = JSON.parse(ev.target.result); if (!Array.isArray(imp)) throw 1;
         if (state.historyData.length && confirm('与现有记录合并？')) {
           const m = new Map(state.historyData.map(i => [i.id, i])); imp.forEach(i => m.set(i.id, i));
-          state.historyData = [...m.values()].sort((a, b) => b.id - a.id).slice(0, 100);
+          state.historyData = [...m.values()].sort((a, b) => String(b.id || '').localeCompare(String(a.id || ''))).slice(0, 100);
         } else state.historyData = imp.slice(0, 100);
-        idb.set('nanscript_history_db', state.historyData); bus.emit('historyData:change'); showToast('导入成功');
+        persistHistoryData(); bus.emit('historyData:change'); showToast('导入成功');
       } catch { showToast('无效格式', 'error'); }
       e.target.value = '';
     };
     r.readAsText(file);
   };
-
-
   // 终态更新
   bus.emit('preview:update');
 });
-
-// 3. 移动端适配
-initMobile();

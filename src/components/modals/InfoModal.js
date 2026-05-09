@@ -58,14 +58,16 @@ export const InfoModal = `
                         <h4 class="font-bold text-on-surface text-base">最新动态</h4>
 
                         <div class="pb-4 border-b border-outline-variant/50">
-                            <p class="font-bold text-primary mb-1">2026-05-09</p>
-                            <p class="text-[11px] text-on-surface-variant mb-2 italic">接口兼容与画幅体验继续打磨：让模型更好找、参数更稳传、生成结果更容易识别。</p>
+                            <p class="font-bold text-primary mb-1">2026-05-10</p>
+                            <p class="text-[11px] text-on-surface-variant mb-2 italic">创作链路、任务队列、参考图管理与历史检索整体升级，同时完成项目巡检和旧版本残余清理。</p>
                             <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
-                                <li>🧩 <strong class="text-on-surface">新增 Responses API 模式。</strong>OpenAI 兼容接口可切换到 <code class="bg-surface-container px-1 rounded">/v1/responses</code>，支持通过 image_generation tool 调用生图能力。</li>
-                                <li>🎯 <strong class="text-on-surface">模型列表过滤更精准。</strong>Gemini 与 GPT Image 区域只展示对应引擎模型，避免第三方接口返回全量模型时混入无关选项。</li>
-                                <li>📐 <strong class="text-on-surface">高清尺寸参数兼容增强。</strong>同步传递 size、image_size、imageSize 与 generationConfig 等常见字段，尽量恢复不同代理下的 2K / 4K 出图能力。</li>
-                                <li>🖼️ <strong class="text-on-surface">图片结果识别更稳。</strong>增强对 Responses、Chat-like 返回结构和图片链接的解析，减少把普通文本误判为生成图的情况。</li>
-                                <li>✨ <strong class="text-on-surface">画幅选择细节优化。</strong>整理下拉菜单与自定义宽高输入样式，让比例选择区更统一、更清爽。</li>
+                                <li>🧭 <strong class="text-on-surface">新增生成失败诊断面板。</strong>自动识别 API 配置、网络代理、模型名、尺寸参数和垫图过大等常见问题，并提供打开配置、降低质量重试、清空垫图重试和复制调试日志等快捷操作。</li>
+                                <li>📋 <strong class="text-on-surface">重做任务队列体验。</strong>队列现在会展示等待、生成中、成功、失败、取消等完整状态，支持单个任务取消、失败重试、完成统计和记录清理。</li>
+                                <li>🖼️ <strong class="text-on-surface">参考图管理增强。</strong>参考图支持拖拽排序、用途标注、尺寸/体积提示、大图风险提醒、清空全部，并会持久化参考图用途。</li>
+                                <li>🪄 <strong class="text-on-surface">图片输入自动压缩。</strong>上传参考图、蒙版重绘底图和生成请求中的 Data URL 会尽量自动压缩，降低请求体过大导致失败的概率，同时保持蒙版尺寸同步。</li>
+                                <li>⭐ <strong class="text-on-surface">历史记录更好找。</strong>新增关键词搜索、引擎筛选、收藏筛选与历史收藏星标，历史列表会显示筛选命中数量。</li>
+                                <li>📐 <strong class="text-on-surface">画幅选择样式收敛。</strong>压缩尺寸选择器的高度、阴影和间距，让面板更稳定、更轻量。</li>
+                                <li>🧹 <strong class="text-on-surface">项目清理。</strong>统一旧品牌导出命名为 DreamInk，移除重复移动端初始化和未使用工具代码，并完成生产构建验证。</li>
                             </ul>
                         </div>
 
@@ -75,6 +77,18 @@ export const InfoModal = `
                                 查看历史更新记录
                             </summary>
                             <div class="space-y-4 mt-2">
+                                <div class="pb-4 border-b border-outline-variant/50">
+                                    <p class="font-bold text-primary mb-1">2026-05-09</p>
+                                    <p class="text-[11px] text-on-surface-variant mb-2 italic">接口兼容与画幅体验继续打磨：让模型更好找、参数更稳传、生成结果更容易识别。</p>
+                                    <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
+                                        <li>🧩 <strong class="text-on-surface">新增 Responses API 模式。</strong>OpenAI 兼容接口可切换到 <code class="bg-surface-container px-1 rounded">/v1/responses</code>，支持通过 image_generation tool 调用生图能力。</li>
+                                        <li>🎯 <strong class="text-on-surface">模型列表过滤更精准。</strong>Gemini 与 GPT Image 区域只展示对应引擎模型，避免第三方接口返回全量模型时混入无关选项。</li>
+                                        <li>📐 <strong class="text-on-surface">高清尺寸参数兼容增强。</strong>同步传递 size、image_size、imageSize 与 generationConfig 等常见字段，尽量恢复不同代理下的 2K / 4K 出图能力。</li>
+                                        <li>🖼️ <strong class="text-on-surface">图片结果识别更稳。</strong>增强对 Responses、Chat-like 返回结构和图片链接的解析，减少把普通文本误判为生成图的情况。</li>
+                                        <li>✨ <strong class="text-on-surface">画幅选择细节优化。</strong>整理下拉菜单与自定义宽高输入样式，让比例选择区更统一、更清爽。</li>
+                                    </ul>
+                                </div>
+
                                 <div class="pb-4 border-b border-outline-variant/50">
                             <p class="font-bold text-primary mb-1">2026-04-30（晚间更新）</p>
                             <p class="text-[11px] text-on-surface-variant mb-2 italic">创作控制力与配置体验同步升级：从审核、尺寸到重绘流程，都更清晰、更可控。</p>
@@ -150,7 +164,7 @@ export const InfoModal = `
                                 <div class="pb-4 border-b border-outline-variant/50">
                                     <p class="font-bold text-primary mb-1">2026-03-26 · 诞生</p>
                                     <ul class="space-y-1.5 pl-4 list-disc text-on-surface-variant text-xs">
-                                        <li>🎉 BanavelAi Image 开始内测，欢迎使用。</li>
+                                        <li>🎉 DreamInk Image 开始内测，欢迎使用。</li>
                                         <li>如有功能建议或 Bug，欢迎反馈。</li>
                                     </ul>
                                 </div>

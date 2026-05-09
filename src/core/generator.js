@@ -16,10 +16,11 @@ import { idb } from "../storage/idb.js";
 import { localFS } from "../storage/local-fs.js";
 import { getModel } from "../ui/engine.js";
 import { createGalleryItemDOM } from "../ui/gallery.js";
+import { renderPreviews } from "../ui/preview.js";
 import { saveHistory } from "../ui/history.js";
 import { showToast } from "../ui/toast.js";
 import { el, icon } from "../utils/dom.js";
-import { $, fileToB64 } from "../utils/helpers.js";
+import { $, fileToB64, compressImageDataUrl, resizeImageDataUrl } from "../utils/helpers.js";
 
 /** 防改写前缀（参考自 gpt-image-playground） */
 const PROMPT_REWRITE_GUARD_PREFIX =
@@ -361,6 +362,42 @@ function summarizeImageInputs(images = []) {
   });
 }
 
+async function compressGenerationImageInputs(images = [], masks = []) {
+  const compressedImages = [];
+  const compressedMasks = Array.isArray(masks) ? [...masks] : [];
+  const reports = [];
+
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    if (!/^data:image\//i.test(String(img || ""))) {
+      compressedImages.push(img);
+      reports.push({ index: i, skipped: true, reason: "not-data-url" });
+      continue;
+    }
+
+    try {
+      const result = await compressImageDataUrl(img);
+      compressedImages.push(result.dataUrl);
+      if (compressedMasks[i] && result.compressed) {
+        compressedMasks[i] = await resizeImageDataUrl(compressedMasks[i], result.width, result.height);
+      }
+      reports.push({
+        index: i,
+        originalBytes: result.originalBytes,
+        compressedBytes: result.compressedBytes,
+        width: result.width,
+        height: result.height,
+        compressed: result.compressed,
+      });
+    } catch (error) {
+      compressedImages.push(img);
+      reports.push({ index: i, skipped: true, reason: error?.message || String(error) });
+    }
+  }
+
+  return { images: compressedImages, masks: compressedMasks, reports };
+}
+
 function sanitizeUrlForLog(url = "") {
   try {
     const parsed = new URL(url);
@@ -379,6 +416,324 @@ function generationDebug(stage, payload = {}) {
   if (!GENERATION_DEBUG_ENABLED) return;
   console.debug(`[generation-debug] ${stage}`, payload);
   pushGenerationDebugEntry(stage, payload);
+}
+
+const GENERATION_DIAGNOSTIC_RULES = [
+  {
+    code: "missing-api-config",
+    title: "API 配置不完整",
+    icon: "vpn_key_alert",
+    match: ({ message, context }) =>
+      !!context.missingConfig || /api key|base url|缺少.*api|api.*缺失|未配置|empty config/i.test(message),
+    summary: "当前引擎缺少 API Key 或接口地址，所以请求还没有真正发出。",
+    details: [
+      "打开 API 配置，检查当前引擎对应的 Base URL 与 API Key。",
+      "如果你刚切换过 Banana / GPT Image-2，请确认填的是当前引擎那一组配置。",
+    ],
+    actions: ["openApiConfig", "copyDebug"],
+  },
+  {
+    code: "request-timeout",
+    title: "请求超时或连接被中断",
+    icon: "timer_off",
+    match: ({ message, error }) =>
+      error?.name === "TimeoutError" || /timeout|timed out|超时|deadline|aborted due to timeout/i.test(message),
+    summary: "服务端响应太慢，或代理在等待期间断开了连接。",
+    details: [
+      "先降低质量 / 尺寸后重试，减少生成耗时。",
+      "如果连续超时，请稍后重试或更换更稳定的接口节点。",
+    ],
+    actions: ["lowerQualityRetry", "openApiConfig", "copyDebug"],
+  },
+  {
+    code: "network-proxy",
+    title: "网络或代理连接异常",
+    icon: "wifi_off",
+    match: ({ message }) =>
+      /failed to fetch|networkerror|network error|load failed|cors|proxy|代理|econn|enotfound|socket|ssl|certificate|502|503|504|bad gateway|service unavailable|gateway timeout/i.test(message),
+    summary: "浏览器没有成功连到接口，常见原因是代理、跨域、证书或网关临时不可用。",
+    details: [
+      "检查 Base URL 是否能访问，代理/中转服务是否在线。",
+      "如果是本地代理，请确认浏览器可以访问该地址且允许跨域请求。",
+    ],
+    actions: ["openApiConfig", "retry", "copyDebug"],
+  },
+  {
+    code: "model-name",
+    title: "模型名称可能不正确",
+    icon: "model_training",
+    match: ({ message }) =>
+      /model|模型|not found|does not exist|not exist|unsupported.*model|invalid.*model|404|permission.*model/i.test(message),
+    summary: "接口无法识别或无权访问当前模型名。",
+    details: [
+      "打开 API 配置，确认模型名与当前接口渠道完全一致。",
+      "也可以点击“获取模型”重新选择可用模型。",
+    ],
+    actions: ["openApiConfig", "copyDebug"],
+  },
+  {
+    code: "image-size",
+    title: "图片尺寸或比例不受支持",
+    icon: "aspect_ratio",
+    match: ({ message }) =>
+      /size|image_size|image size|resolution|dimension|aspect|ratio|尺寸|分辨率|比例|must be one of|unsupported.*(size|resolution)|invalid.*(size|resolution)/i.test(message),
+    summary: "当前渠道不支持请求的画幅、尺寸或高清参数。",
+    details: [
+      "先改为标准画质 / 1K，或使用常见比例（1:1、16:9、9:16）再试。",
+      "不同中转对 2K / 4K / 自定义尺寸支持差异很大。",
+    ],
+    actions: ["lowerQualityRetry", "openApiConfig", "copyDebug"],
+  },
+  {
+    code: "reference-image-too-large",
+    title: "垫图可能过大或数量过多",
+    icon: "photo_size_select_large",
+    match: ({ message }) =>
+      /413|payload too large|request entity too large|content too large|file too large|image too large|too many images|max.*image|input image|垫图|底图|图片过大|文件过大/i.test(message),
+    summary: "上传的参考图让请求体过大，或超出了接口的垫图限制。",
+    details: [
+      "清空垫图后可验证是否由参考图导致。",
+      "如果需要垫图，请压缩图片、降低分辨率，或减少垫图数量后再试。",
+    ],
+    actions: ["clearRefsRetry", "lowerQualityRetry", "copyDebug"],
+  },
+];
+
+const GENERATION_DIAGNOSTIC_ACTION_META = {
+  openApiConfig: { label: "打开 API 配置", iconName: "settings" },
+  lowerQualityRetry: { label: "降低质量重试", iconName: "speed" },
+  clearRefsRetry: { label: "清空垫图重试", iconName: "layers_clear" },
+  retry: { label: "直接重试", iconName: "refresh" },
+  copyDebug: { label: "复制调试日志", iconName: "content_copy" },
+};
+
+function getProviderDisplayName(apiType = "gemini") {
+  return apiType === "openai" ? "GPT Image-2" : "Banana · Gemini";
+}
+
+function getLatestGenerationDebugPayload(stage) {
+  for (let i = generationDebugEntries.length - 1; i >= 0; i--) {
+    if (generationDebugEntries[i]?.stage === stage) return generationDebugEntries[i].payload || null;
+  }
+  return null;
+}
+
+function diagnoseGenerationFailure(error, context = {}) {
+  const message = String(error?.message || error || "未知错误");
+  const ruleContext = { message, error, context };
+  const matchedRule =
+    GENERATION_DIAGNOSTIC_RULES.find((rule) => rule.match(ruleContext)) || {
+      code: "unknown",
+      title: "生成失败，原因需要进一步确认",
+      icon: "troubleshoot",
+      summary: "暂时无法自动归类该错误，请结合 Generation Debug 查看请求细节。",
+      details: [
+        "优先检查 API 配置、模型名、图片尺寸与网络代理。",
+        "复制调试日志后可以发给接口服务商或开发者排查。",
+      ],
+      actions: ["openApiConfig", "lowerQualityRetry", "copyDebug"],
+    };
+
+  const requestContext = getLatestGenerationDebugPayload("execute:request-context") || {};
+  const inputContext = getLatestGenerationDebugPayload("execute:inputs-ready") || {};
+
+  return {
+    ...matchedRule,
+    providerName: getProviderDisplayName(context.apiType || requestContext.apiType),
+    originalMessage: message,
+    requestContext,
+    inputContext,
+  };
+}
+
+function openApiConfigFromDiagnostic(apiType) {
+  const modal = $("apiConfigModal");
+  if (modal) modal.style.display = "flex";
+
+  const fieldId =
+    apiType === "openai"
+      ? $("openaiApiKey")?.value
+        ? "modelOpenai"
+        : "openaiApiKey"
+      : $("geminiApiKey")?.value
+        ? "modelGemini"
+        : "geminiApiKey";
+  const field = $(fieldId);
+  setTimeout(() => {
+    field?.focus?.();
+    field?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }, 80);
+}
+
+function lowerGenerationQuality() {
+  const qualitySelect = $("qualitySelect");
+  if (qualitySelect) {
+    qualitySelect.value = "standard";
+    qualitySelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  const bananaImageSize = $("bananaImageSize");
+  if (bananaImageSize) {
+    bananaImageSize.value = "1K";
+    bananaImageSize.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  const ratioSelect = $("ratioSelect");
+  if (ratioSelect && ratioSelect.value === "custom") {
+    ratioSelect.value = "1024x1024";
+    window._updateRatioUI?.();
+    ratioSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+}
+
+function clearReferenceImages() {
+  state.selectedFiles = [];
+  state.selectedMasks = [];
+  const imageInput = $("imageInput");
+  if (imageInput) imageInput.value = "";
+  renderPreviews();
+}
+
+function handleGenerationDiagnosticAction(action, diagnostic, retryCustom = {}) {
+  switch (action) {
+    case "openApiConfig":
+      openApiConfigFromDiagnostic(diagnostic.requestContext?.apiType || retryCustom.apiType || $("apiTypeSelect")?.value || "gemini");
+      break;
+    case "lowerQualityRetry":
+      lowerGenerationQuality();
+      showToast("已切换为标准/1K，准备重试...");
+      setTimeout(() => executeGeneration(retryCustom), 120);
+      break;
+    case "clearRefsRetry":
+      clearReferenceImages();
+      showToast("已清空垫图，准备重试...");
+      setTimeout(() => executeGeneration(retryCustom), 120);
+      break;
+    case "retry":
+      setTimeout(() => executeGeneration(retryCustom), 120);
+      break;
+    case "copyDebug":
+      copyAllGenerationDebugEntries();
+      break;
+    default:
+      break;
+  }
+}
+
+function ensureGenerationDiagnosticPanel() {
+  let panel = document.getElementById("generationDiagnosticPanel");
+  if (panel) return panel;
+
+  const statusBox = $("statusBox");
+  const mountTarget = statusBox?.parentElement;
+  if (!mountTarget) return null;
+
+  panel = el("section", {
+    id: "generationDiagnosticPanel",
+    className:
+      "hidden mt-4 rounded-2xl border border-error/30 bg-error/5 shadow-sm overflow-hidden",
+  });
+
+  const debugPanel = document.getElementById("generationDebugPanel");
+  if (debugPanel?.parentElement === mountTarget) {
+    mountTarget.insertBefore(panel, debugPanel);
+  } else {
+    mountTarget.appendChild(panel);
+  }
+
+  return panel;
+}
+
+function renderGenerationDiagnosticPanel(error, context = {}, retryCustom = {}) {
+  const panel = ensureGenerationDiagnosticPanel();
+  if (!panel) return null;
+
+  const diagnostic = diagnoseGenerationFailure(error, context);
+  const actionButtons = diagnostic.actions.map((action) => {
+    const meta = GENERATION_DIAGNOSTIC_ACTION_META[action];
+    if (!meta) return null;
+    return el(
+      "button",
+      {
+        type: "button",
+        className:
+          action === "copyDebug"
+            ? "px-3 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1"
+            : "px-3 py-1.5 rounded-lg text-xs font-bold bg-error/10 text-error hover:bg-error/20 border border-error/20 transition-colors flex items-center gap-1",
+        onclick: () => handleGenerationDiagnosticAction(action, diagnostic, retryCustom),
+      },
+      icon(meta.iconName, "text-[15px]"),
+      meta.label,
+    );
+  }).filter(Boolean);
+
+  const contextItems = [
+    diagnostic.providerName ? `引擎：${diagnostic.providerName}` : "",
+    diagnostic.requestContext?.finalModel ? `模型：${diagnostic.requestContext.finalModel}` : "",
+    diagnostic.requestContext?.ratio ? `尺寸：${diagnostic.requestContext.ratio}` : "",
+    diagnostic.requestContext?.quality ? `质量：${diagnostic.requestContext.quality}` : "",
+    Number.isFinite(diagnostic.inputContext?.imageCount) ? `垫图：${diagnostic.inputContext.imageCount} 张` : "",
+  ].filter(Boolean);
+
+  panel.replaceChildren(
+    el(
+      "div",
+      {
+        className:
+          "flex items-start gap-3 px-4 py-3 border-b border-error/20 bg-error/10",
+      },
+      icon(diagnostic.icon, "text-error text-[22px] shrink-0 mt-0.5"),
+      el(
+        "div",
+        { className: "min-w-0 flex-1" },
+        el("div", {
+          className: "text-sm font-bold text-error",
+          textContent: diagnostic.title,
+        }),
+        el("div", {
+          className: "text-xs text-on-surface-variant mt-1 leading-relaxed",
+          textContent: diagnostic.summary,
+        }),
+      ),
+    ),
+    el(
+      "div",
+      { className: "p-4 space-y-3" },
+      contextItems.length
+        ? el("div", {
+            className: "text-[10px] text-on-surface-variant leading-relaxed",
+            textContent: contextItems.join(" · "),
+          })
+        : null,
+      el(
+        "ul",
+        { className: "space-y-1.5" },
+        ...diagnostic.details.map((detail) =>
+          el(
+            "li",
+            { className: "flex gap-2 text-xs text-on-surface-variant leading-relaxed" },
+            icon("check_circle", "text-success text-[14px] shrink-0 mt-0.5"),
+            el("span", { textContent: detail }),
+          ),
+        ),
+      ),
+      el("div", {
+        className:
+          "rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-3 py-2 text-[11px] text-on-surface-variant break-all font-mono",
+        textContent: `原始错误：${diagnostic.originalMessage}`,
+      }),
+      el("div", { className: "flex flex-wrap gap-2" }, ...actionButtons),
+    ),
+  );
+
+  panel.classList.remove("hidden");
+  panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+  return diagnostic;
+}
+
+function hideGenerationDiagnosticPanel() {
+  const panel = document.getElementById("generationDiagnosticPanel");
+  if (panel) panel.classList.add("hidden");
 }
 
 function mapBananaCompatSize(aspectRatio = "1:1", imageSize = "1K") {
@@ -431,6 +786,7 @@ export async function executeGeneration(custom = {}) {
 
   const apiType = $("apiTypeSelect")?.value || "gemini";
   resetGenerationDebugEntries();
+  hideGenerationDiagnosticPanel();
   const { apiKey: key, baseUrl: base } = getApiConfig(apiType);
   generationDebug("execute:start", {
     apiType,
@@ -445,6 +801,8 @@ export async function executeGeneration(custom = {}) {
   if (!key || !base) {
     const providerName =
       apiType === "openai" ? "GPT Image-2" : "Banana · Gemini";
+    const missingConfigMessage = `${providerName} 的 API Key 或 Base URL 缺失`;
+    const missingConfigError = new Error(missingConfigMessage);
     generationDebug("execute:missing-config", {
       providerName,
       hasKey: !!key,
@@ -452,7 +810,21 @@ export async function executeGeneration(custom = {}) {
       apiKeyMasked: maskSecret(key),
       baseMasked: sanitizeUrlForLog(base),
     });
-    return showToast(`${providerName} 的 API Key 或 Base URL 缺失`, "error");
+    if (custom._queueTaskId) {
+      updateQueueTask(custom._queueTaskId, {
+        status: "failed",
+        error: diagnoseGenerationFailure(missingConfigError, { apiType, missingConfig: true }).title,
+        endedAt: Date.now(),
+      });
+      if (activeQueueTask?.id === custom._queueTaskId) activeQueueTask = null;
+      setTimeout(processNextQueueTask, 0);
+    }
+    const diagnostic = renderGenerationDiagnosticPanel(
+      missingConfigError,
+      { apiType, missingConfig: true },
+      custom,
+    );
+    return showToast(diagnostic?.title || missingConfigMessage, "error");
   }
 
   state.isGenerating = true;
@@ -464,6 +836,15 @@ export async function executeGeneration(custom = {}) {
     Math.min(parseInt(custom.batchCount || $("batchSelect").value) || 1, 20),
   );
   const t0 = Date.now();
+  let generationSucceeded = false;
+  let generationFailure = null;
+  if (custom._queueTaskId) {
+    updateQueueTask(custom._queueTaskId, {
+      status: "running",
+      startedAt: t0,
+      error: "",
+    });
+  }
   const btn = $("runBtn");
   const status = $("statusBox");
   const results = $("resultArea");
@@ -541,6 +922,9 @@ export async function executeGeneration(custom = {}) {
     if (!custom.imageDatas && state.selectedFiles.length) {
       imgs = await Promise.all(state.selectedFiles.map(fileToB64));
     }
+    const compressedInput = await compressGenerationImageInputs(imgs, state.selectedMasks || []);
+    imgs = compressedInput.images;
+    const requestMasks = compressedInput.masks;
 
     const prompt = custom.prompt ?? $("promptInput").value;
     generationDebug("execute:inputs-ready", {
@@ -548,6 +932,7 @@ export async function executeGeneration(custom = {}) {
       hasPrompt: !!prompt?.trim(),
       imageCount: imgs.length,
       imageSummaries: summarizeImageInputs(imgs),
+      compressionReports: compressedInput.reports,
     });
     if (!imgs.length && !prompt.trim())
       throw new Error("请输入提示词或提供底图");
@@ -896,10 +1281,10 @@ export async function executeGeneration(custom = {}) {
 
             imgs.forEach((img, i) => {
               fd.append("image", _b64ToBlob(img), `image${i}.png`);
-              if (state.selectedMasks && state.selectedMasks[i]) {
+              if (requestMasks && requestMasks[i]) {
                 fd.append(
                   "mask",
-                  _b64ToBlob(state.selectedMasks[i]),
+                  _b64ToBlob(requestMasks[i]),
                   `mask${i}.png`,
                 );
               }
@@ -1462,7 +1847,9 @@ export async function executeGeneration(custom = {}) {
     );
     results.style.display = "block";
     status.style.display = "none";
+    generationSucceeded = true;
   } catch (e) {
+    generationFailure = e;
     generationDebug("execute:catch", {
       name: e?.name,
       message: e?.message,
@@ -1472,10 +1859,14 @@ export async function executeGeneration(custom = {}) {
     });
     if (e.name === "AbortError") {
       showToast("生成已终止", "error");
-      clearQueue(); // 终止时清空队列，防止立刻开始下一个
+      const currentQueueTask = custom._queueTaskId ? getQueueTask(custom._queueTaskId) : null;
+      if (currentQueueTask?.status !== "canceling") {
+        clearQueue(); // 手动终止时清空等待队列，防止立刻开始下一个
+      }
     } else {
       console.error(e);
-      showToast(e.message, "error");
+      const diagnostic = renderGenerationDiagnosticPanel(e, { apiType }, custom);
+      showToast(diagnostic?.title || e.message, "error");
     }
     status.style.display = "none";
     placeholders.forEach((p) => p.remove());
@@ -1490,14 +1881,25 @@ export async function executeGeneration(custom = {}) {
     btn.replaceChildren(icon("auto_awesome"), " 开始创造");
     status.textContent = "";
 
-    // 队列中还有任务，自动执行下一个
-    if (taskQueue.length > 0) {
-      const next = taskQueue.shift();
-      updateQueueBadge();
-      showToast(`🔄 开始第 ${next._queueIndex} 个排队任务...`);
-      // 短暂延迟以让 UI 更新
-      setTimeout(() => executeGeneration(next), 500);
+    if (custom._queueTaskId) {
+      const queueTask = getQueueTask(custom._queueTaskId);
+      if (queueTask && ["running", "canceling"].includes(queueTask.status)) {
+        const wasCanceled =
+          queueTask.status === "canceling" || generationFailure?.name === "AbortError";
+        updateQueueTask(custom._queueTaskId, {
+          status: wasCanceled ? "canceled" : generationSucceeded ? "success" : "failed",
+          error: wasCanceled
+            ? ""
+            : generationFailure
+              ? diagnoseGenerationFailure(generationFailure, { apiType }).title
+              : "",
+          endedAt: Date.now(),
+        });
+      }
+      if (activeQueueTask?.id === custom._queueTaskId) activeQueueTask = null;
     }
+
+    processNextQueueTask();
   }
 }
 
@@ -1505,8 +1907,252 @@ export async function executeGeneration(custom = {}) {
 /** 排队中的任务列表 */
 const taskQueue = [];
 
+/** 面板中展示的任务记录（包含已完成/失败/取消） */
+const queueRecords = [];
+
+let activeQueueTask = null;
+
 /** 内部计数器 */
 let _queueCounter = 0;
+
+const QUEUE_STATUS_META = {
+  waiting: { label: "等待中", icon: "schedule", cls: "text-on-surface-variant bg-surface-container" },
+  running: { label: "生成中", icon: "sync", cls: "text-primary bg-primary/10" },
+  success: { label: "成功", icon: "check_circle", cls: "text-success bg-success/10" },
+  failed: { label: "失败", icon: "error", cls: "text-error bg-error/10" },
+  canceled: { label: "已取消", icon: "block", cls: "text-on-surface-variant bg-surface-container" },
+  canceling: { label: "取消中", icon: "hourglass_empty", cls: "text-on-surface-variant bg-surface-container" },
+};
+
+function formatQueueDuration(ms = 0) {
+  const sec = Math.max(0, Math.round(ms / 1000));
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rest = sec % 60;
+  return `${min}m ${rest}s`;
+}
+
+function getQueueTask(taskId) {
+  return queueRecords.find((task) => task.id === taskId) || null;
+}
+
+function updateQueueTask(taskId, patch = {}) {
+  const task = getQueueTask(taskId);
+  if (!task) return;
+  Object.assign(task, patch, { updatedAt: Date.now() });
+  renderQueuePanel();
+  updateQueueBadge();
+}
+
+function getQueueSummary() {
+  if (!queueRecords.length) return null;
+  const terminalStatuses = new Set(["success", "failed", "canceled"]);
+  const waiting = queueRecords.filter((task) => task.status === "waiting").length;
+  const running = queueRecords.filter((task) => ["running", "canceling"].includes(task.status)).length;
+  const success = queueRecords.filter((task) => task.status === "success").length;
+  const failed = queueRecords.filter((task) => task.status === "failed").length;
+  const canceled = queueRecords.filter((task) => task.status === "canceled").length;
+  const completed = success + failed + canceled;
+  const allDone = queueRecords.every((task) => terminalStatuses.has(task.status));
+  const startedAt = Math.min(...queueRecords.map((task) => task.createdAt || Date.now()));
+  const endedAt = allDone
+    ? Math.max(...queueRecords.map((task) => task.endedAt || task.updatedAt || Date.now()))
+    : Date.now();
+
+  return {
+    total: queueRecords.length,
+    waiting,
+    running,
+    success,
+    failed,
+    canceled,
+    completed,
+    allDone,
+    duration: formatQueueDuration(endedAt - startedAt),
+  };
+}
+
+function ensureQueuePanel() {
+  let panel = document.getElementById("queueStatusPanel");
+  if (panel) return panel;
+
+  const statusBox = $("statusBox");
+  const mountTarget = statusBox?.parentElement;
+  if (!mountTarget) return null;
+
+  panel = el(
+    "section",
+    {
+      id: "queueStatusPanel",
+      className:
+        "hidden mt-4 rounded-2xl border border-outline-variant bg-surface-container shadow-sm overflow-hidden",
+    },
+    el(
+      "div",
+      {
+        className:
+          "flex items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low",
+      },
+      el(
+        "div",
+        { className: "min-w-0" },
+        el("div", {
+          className: "text-[11px] font-bold tracking-widest text-primary uppercase",
+          textContent: "任务队列",
+        }),
+        el("div", {
+          id: "queueStatusSummary",
+          className: "text-xs text-on-surface-variant mt-1",
+          textContent: "暂无排队任务",
+        }),
+      ),
+      el(
+        "button",
+        {
+          id: "queueStatusClearBtn",
+          type: "button",
+          className:
+            "px-3 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors",
+        },
+        "清理",
+      ),
+    ),
+    el("div", {
+      id: "queueStatusList",
+      className: "max-h-[260px] overflow-auto custom-scrollbar p-3 space-y-2",
+    }),
+  );
+
+  const debugPanel = document.getElementById("generationDebugPanel");
+  if (debugPanel?.parentElement === mountTarget) {
+    mountTarget.insertBefore(panel, debugPanel);
+  } else {
+    mountTarget.appendChild(panel);
+  }
+
+  panel.querySelector("#queueStatusClearBtn")?.addEventListener("click", () => {
+    clearQueue(true);
+  });
+
+  return panel;
+}
+
+function renderQueuePanel() {
+  const panel = ensureQueuePanel();
+  if (!panel) return;
+  const list = panel.querySelector("#queueStatusList");
+  const summaryEl = panel.querySelector("#queueStatusSummary");
+  if (!list || !summaryEl) return;
+
+  if (!queueRecords.length) {
+    panel.classList.add("hidden");
+    list.replaceChildren();
+    summaryEl.textContent = "暂无排队任务";
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  list.replaceChildren();
+
+  const summary = getQueueSummary();
+  if (summary) {
+    const successRate = summary.total
+      ? Math.round((summary.success / summary.total) * 100)
+      : 0;
+    summaryEl.textContent = summary.allDone
+      ? `完成 ${summary.completed}/${summary.total} · 成功率 ${successRate}% · 成功 ${summary.success} · 失败 ${summary.failed} · 取消 ${summary.canceled} · 总耗时 ${summary.duration}`
+      : `进行中 ${summary.running} · 等待 ${summary.waiting} · 已完成 ${summary.completed}/${summary.total} · 已用时 ${summary.duration}`;
+  }
+
+  queueRecords.slice(-50).reverse().forEach((task) => {
+    const meta = QUEUE_STATUS_META[task.status] || QUEUE_STATUS_META.waiting;
+    const title = task.promptPreview || task.custom?.prompt || $("promptInput")?.value || "当前参数任务";
+    const subParts = [
+      task.custom?.aspectRatio || $("ratioSelect")?.value || "当前画幅",
+      task.custom?.quality || $("qualitySelect")?.value || "当前质量",
+      task.status === "running" && task.startedAt ? `已用时 ${formatQueueDuration(Date.now() - task.startedAt)}` : "",
+      task.status === "success" && task.startedAt && task.endedAt ? `耗时 ${formatQueueDuration(task.endedAt - task.startedAt)}` : "",
+    ].filter(Boolean);
+
+    const statusPill = el(
+      "span",
+      {
+        className: `inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${meta.cls}`,
+      },
+      icon(meta.icon, `text-[13px] ${task.status === "running" ? "animate-spin" : ""}`),
+      meta.label,
+    );
+
+    const actions = [];
+    if (["waiting", "running"].includes(task.status)) {
+      actions.push(
+        el(
+          "button",
+          {
+            type: "button",
+            className:
+              "px-2 py-1 rounded-lg text-[10px] font-bold text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors",
+            onclick: (e) => {
+              e.stopPropagation();
+              cancelQueueTask(task.id);
+            },
+          },
+          task.status === "running" ? "取消" : "移除",
+        ),
+      );
+    }
+    if (task.status === "failed") {
+      actions.push(
+        el(
+          "button",
+          {
+            type: "button",
+            className:
+              "px-2 py-1 rounded-lg text-[10px] font-bold text-primary hover:bg-primary/10 transition-colors",
+            onclick: (e) => {
+              e.stopPropagation();
+              retryQueueTask(task.id);
+            },
+          },
+          "重试",
+        ),
+      );
+    }
+
+    list.appendChild(
+      el(
+        "div",
+        {
+          className:
+            "rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-3 py-2.5",
+        },
+        el(
+          "div",
+          { className: "flex items-start justify-between gap-3" },
+          el(
+            "div",
+            { className: "min-w-0 flex-1" },
+            el("div", {
+              className: "text-xs font-bold text-on-surface truncate",
+              textContent: `#${task.index} ${title}`,
+            }),
+            el("div", {
+              className: "mt-1 text-[10px] text-on-surface-variant truncate",
+              textContent: subParts.join(" · "),
+            }),
+            task.error
+              ? el("div", {
+                  className: "mt-1 text-[10px] text-error line-clamp-2",
+                  textContent: task.error,
+                })
+              : null,
+          ),
+          el("div", { className: "flex flex-col items-end gap-1 shrink-0" }, statusPill, ...actions),
+        ),
+      ),
+    );
+  });
+}
 
 /**
  * 更新队列状态徽章
@@ -1514,7 +2160,8 @@ let _queueCounter = 0;
  */
 function updateQueueBadge() {
   let badge = document.getElementById("queueBadge");
-  if (taskQueue.length > 0) {
+  const waitingCount = taskQueue.filter((task) => task.status === "waiting").length;
+  if (waitingCount > 0) {
     if (!badge) {
       badge = el("span", {
         id: "queueBadge",
@@ -1523,7 +2170,7 @@ function updateQueueBadge() {
       });
       $("statusBox")?.parentElement?.insertBefore(badge, $("statusBox"));
     }
-    badge.textContent = `📋 队列: ${taskQueue.length} 个任务等待中`;
+    badge.textContent = `📋 队列: ${waitingCount} 个任务等待中`;
     badge.style.display = "inline-block";
   } else {
     if (badge) badge.style.display = "none";
@@ -1535,18 +2182,26 @@ function updateQueueBadge() {
  * 如果当前没有正在执行的任务，直接执行；否则加入队列等待。
  * @param {Object} [custom={}] - 自定义参数覆盖
  */
-export function enqueueTask(custom = {}) {
-  if (!state.isGenerating) {
-    // 没有正在执行的任务，直接生成
-    executeGeneration(custom);
-  } else {
-    // 正在生成中，加入队列
-    _queueCounter++;
-    custom._queueIndex = _queueCounter;
-    taskQueue.push(custom);
-    updateQueueBadge();
-    showToast(`📋 任务已排队 (第 ${taskQueue.length} 个)`);
-  }
+export function enqueueTask(custom = {}, options = {}) {
+  _queueCounter++;
+  const task = {
+    id: `task_${Date.now()}_${_queueCounter}`,
+    index: _queueCounter,
+    status: "waiting",
+    custom: { ...custom, _queueIndex: _queueCounter },
+    promptPreview: String(custom.prompt || $("promptInput")?.value || "当前参数任务").slice(0, 80),
+    createdAt: Date.now(),
+    startedAt: null,
+    endedAt: null,
+    updatedAt: Date.now(),
+    error: "",
+  };
+  queueRecords.push(task);
+  taskQueue.push(task);
+  renderQueuePanel();
+  updateQueueBadge();
+  processNextQueueTask();
+  if (!options.silent) showToast(`📋 任务已提交 (#${task.index})`);
 }
 
 /**
@@ -1557,16 +2212,104 @@ export function enqueueTask(custom = {}) {
 export function enqueueMultiple(taskCount, custom = {}) {
   const count = Math.max(1, Math.min(taskCount, 50));
   for (let i = 0; i < count; i++) {
-    enqueueTask({ ...custom });
+    enqueueTask({ ...custom }, { silent: true });
   }
   showToast(`📋 已提交 ${count} 个任务`);
+}
+
+function processNextQueueTask() {
+  if (state.isGenerating || activeQueueTask) {
+    renderQueuePanel();
+    updateQueueBadge();
+    return;
+  }
+
+  const next = taskQueue.shift();
+  if (!next) {
+    renderQueuePanel();
+    updateQueueBadge();
+    return;
+  }
+
+  if (next.status !== "waiting") {
+    setTimeout(processNextQueueTask, 0);
+    return;
+  }
+
+  activeQueueTask = next;
+  updateQueueTask(next.id, { status: "running", startedAt: Date.now(), error: "" });
+  showToast(`🔄 开始队列任务 #${next.index}...`);
+  setTimeout(() => {
+    if (next.status !== "running" || activeQueueTask?.id !== next.id) return;
+    executeGeneration({ ...next.custom, _queueTaskId: next.id, _queueIndex: next.index });
+  }, 300);
+}
+
+function cancelQueueTask(taskId) {
+  const task = getQueueTask(taskId);
+  if (!task) return;
+
+  if (task.status === "waiting") {
+    const idx = taskQueue.findIndex((item) => item.id === taskId);
+    if (idx > -1) taskQueue.splice(idx, 1);
+    updateQueueTask(taskId, { status: "canceled", endedAt: Date.now(), error: "" });
+    showToast(`已移除任务 #${task.index}`);
+    return;
+  }
+
+  if (task.status === "running") {
+    updateQueueTask(taskId, { status: "canceling" });
+    if (activeQueueTask?.id === taskId && state.abortCtrl) {
+      state.abortCtrl.abort();
+    } else if (activeQueueTask?.id === taskId && !state.isGenerating) {
+      activeQueueTask = null;
+      updateQueueTask(taskId, { status: "canceled", endedAt: Date.now(), error: "" });
+      processNextQueueTask();
+    }
+    showToast(`正在取消任务 #${task.index}`);
+  }
+}
+
+function retryQueueTask(taskId) {
+  const task = getQueueTask(taskId);
+  if (!task || task.status !== "failed") return;
+  task.status = "waiting";
+  task.startedAt = null;
+  task.endedAt = null;
+  task.error = "";
+  task.updatedAt = Date.now();
+  taskQueue.push(task);
+  renderQueuePanel();
+  updateQueueBadge();
+  processNextQueueTask();
+  showToast(`已重新提交任务 #${task.index}`);
 }
 
 /**
  * 清空任务队列
  */
-export function clearQueue() {
+export function clearQueue(forceClearRecords = false) {
+  const now = Date.now();
+  taskQueue.forEach((task) => {
+    if (task.status === "waiting") {
+      task.status = "canceled";
+      task.endedAt = now;
+      task.updatedAt = now;
+    }
+  });
   taskQueue.length = 0;
+
+  if (forceClearRecords && !state.isGenerating && !activeQueueTask) {
+    queueRecords.length = 0;
+  } else if (forceClearRecords) {
+    for (let i = queueRecords.length - 1; i >= 0; i--) {
+      if (["success", "failed", "canceled"].includes(queueRecords[i].status)) {
+        queueRecords.splice(i, 1);
+      }
+    }
+  }
+
+  renderQueuePanel();
   updateQueueBadge();
   showToast("任务队列已清空");
 }
@@ -1576,5 +2319,5 @@ export function clearQueue() {
  * @returns {number}
  */
 export function getQueueLength() {
-  return taskQueue.length;
+  return taskQueue.filter((task) => task.status === "waiting").length;
 }

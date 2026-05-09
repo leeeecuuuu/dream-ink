@@ -39,6 +39,9 @@ export const state = {
   /** 垫图对应的蒙版（PNG data URL 字符串数组，与 selectedFiles 下标对齐） */
   selectedMasks: [],
 
+  /** 垫图用途标注（subject/style/composition，与 selectedFiles 下标对齐） */
+  selectedRefRoles: [],
+
   /** 咒语书数据 */
   promptLib: [],
 

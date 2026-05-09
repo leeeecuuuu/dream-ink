@@ -84,6 +84,10 @@ export function initDataLoader() {
         if (savedMasks.length) {
           state.selectedMasks = savedMasks;
         }
+        const savedRoles = await localFS.loadJSON('current_ref_roles.json', []);
+        if (Array.isArray(savedRoles) && savedRoles.length) {
+          state.selectedRefRoles = savedRoles;
+        }
         if (state.selectedFiles.length) bus.emit('selectedFiles:change');
       }
       await localFS.loadConfig(syncModelInput, updatePreview);
@@ -107,6 +111,10 @@ export function initDataLoader() {
           const savedMasks = await idb.get('nanscript_current_masks').catch(() => null);
           if (Array.isArray(savedMasks) && savedMasks.length) {
             state.selectedMasks = savedMasks;
+          }
+          const savedRoles = await idb.get('nanscript_current_ref_roles').catch(() => null);
+          if (Array.isArray(savedRoles) && savedRoles.length) {
+            state.selectedRefRoles = savedRoles;
           }
           bus.emit('selectedFiles:change');
         }

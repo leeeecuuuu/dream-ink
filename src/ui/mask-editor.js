@@ -4,7 +4,7 @@
  * 处理图片涂抹、橡皮擦，生成 Base64 黑白蒙版供重绘使用
  */
 
-import { $ } from '../utils/helpers.js';
+import { $, compressImageDataUrl } from '../utils/helpers.js';
 import { state } from '../state/app-state.js';
 import { showToast } from './toast.js';
 import { bus } from '../utils/event-bus.js';
@@ -154,7 +154,7 @@ export function initMaskEditor() {
         img.onerror = () => {
             showToast('图片加载失败，无法打开蒙版编辑器', 'error');
         };
-        img.onload = () => {
+        img.onload = async () => {
             // If opened from gallery, store the image in state.selectedFiles as a File
             // We use canvas to export a safe base64 (avoids any cross-origin issues)
             if (fromGallery) {
@@ -164,7 +164,17 @@ export function initMaskEditor() {
                 tempCanvas.height = img.naturalHeight || img.height;
                 const tempCtx = tempCanvas.getContext('2d');
                 tempCtx.drawImage(img, 0, 0);
-                const b64DataUrl = tempCanvas.toDataURL('image/png');
+                const rawDataUrl = tempCanvas.toDataURL('image/png');
+                let b64DataUrl = rawDataUrl;
+                try {
+                    const compressed = await compressImageDataUrl(rawDataUrl);
+                    b64DataUrl = compressed.dataUrl;
+                    if (compressed.compressed) {
+                        showToast(`重绘底图已自动压缩至 ${compressed.width}x${compressed.height}`);
+                    }
+                } catch (e) {
+                    console.warn('重绘底图压缩失败，使用原图', e);
+                }
                 // Convert to File and store in state
                 const byteStr = atob(b64DataUrl.split(',')[1]);
                 const mimeStr = b64DataUrl.split(',')[0].match(/:(.*?);/)[1];

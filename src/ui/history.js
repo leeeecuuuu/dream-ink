@@ -13,6 +13,59 @@ import { state } from '../state/app-state.js';
 import { showToast } from './toast.js';
 import { bus } from '../utils/event-bus.js';
 
+const historyFilters = {
+  query: '',
+  engine: 'all',
+  favoriteOnly: false,
+};
+
+export function persistHistoryData() {
+  if (localFS.isActive()) {
+    const toSave = state.historyData.map(({ _thumbSrc, ...rest }) => rest);
+    return localFS.saveJSON('history.json', toSave).catch(() => {});
+  }
+  return idb.set('nanscript_history_db', state.historyData);
+}
+
+function normalizeText(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function historySearchHaystack(item) {
+  return [
+    item.prompt,
+    item.model,
+    item.aspectRatio,
+    item.quality,
+    item.apiType,
+    item.date,
+  ].map(normalizeText).join(' ');
+}
+
+function matchesHistoryFilters(item) {
+  if (historyFilters.favoriteOnly && !item.favorite) return false;
+  if (historyFilters.engine !== 'all' && (item.apiType || '') !== historyFilters.engine) return false;
+  if (historyFilters.query && !historySearchHaystack(item).includes(historyFilters.query)) return false;
+  return true;
+}
+
+function updateHistoryFilterSummary(total, visible) {
+  const summary = $('historyFilterSummary');
+  if (!summary) return;
+  const activeFilters = [];
+  if (historyFilters.query) activeFilters.push(`关键词“${historyFilters.query}”`);
+  if (historyFilters.engine !== 'all') activeFilters.push(historyFilters.engine === 'openai' ? 'GPT Image-2' : 'Banana');
+  if (historyFilters.favoriteOnly) activeFilters.push('只看收藏');
+  summary.textContent = activeFilters.length ? `已筛选 ${visible} / ${total} 条 · ${activeFilters.join(' · ')}` : `共 ${total} 条记录`;
+}
+
+function createEmptyHistoryMessage(text) {
+  return el('div', {
+    style: 'text-align:center;color:var(--text-muted);font-size:0.85rem;margin-top:40px;line-height:1.8',
+    textContent: text,
+  });
+}
+
 /**
  * 保存一条历史记录
  * @param {Object} params - 生成参数
@@ -88,23 +141,22 @@ export function saveHistory(params, b64Img, refImages = [], presetId = null) {
         aspectRatio: params.aspectRatio, quality: params.quality,
         batchCount: params.batchCount, apiType: $('apiTypeSelect')?.value || 'gemini',
         imageFile, thumbFile, _thumbSrc: thumb, refFiles, refImages: [],
-        maskFiles, maskImages: []
+        maskFiles, maskImages: [], favorite: false
       });
 
       if (state.historyData.length > 100) state.historyData = state.historyData.slice(0, 100);
-      const toSave = state.historyData.map(({ _thumbSrc, ...rest }) => rest);
-      await localFS.saveJSON('history.json', toSave);
+      await persistHistoryData();
     } else {
       state.historyData.unshift({
         id, date, prompt: params.prompt || '纯图生成', model: params.model,
         aspectRatio: params.aspectRatio, quality: params.quality,
         batchCount: params.batchCount, apiType: $('apiTypeSelect')?.value || 'gemini',
         thumb, fullImage: originalImageSrc, refImages,
-        maskImages: params.masks || []
+        maskImages: params.masks || [], favorite: false
       });
 
       if (state.historyData.length > 100) state.historyData = state.historyData.slice(0, 100);
-      idb.set('nanscript_history_db', state.historyData);
+      persistHistoryData();
     }
     bus.emit('historyData:change');
   }
@@ -117,20 +169,29 @@ export function renderHistory() {
   const list = $('historyList');
   if (!list) return;
 
+  const total = state.historyData.length;
+
   if (!state.historyData.length) {
     clearChildren(list);
-    list.appendChild(
-      el('div', {
-        style: 'text-align:center;color:var(--text-muted);font-size:0.85rem;margin-top:40px',
-        textContent: '暂无历史记录',
-      })
-    );
+    updateHistoryFilterSummary(0, 0);
+    list.appendChild(createEmptyHistoryMessage('暂无历史记录'));
     return;
   }
 
   clearChildren(list);
 
-  state.historyData.forEach((item, idx) => {
+  const filteredHistory = state.historyData
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ item }) => matchesHistoryFilters(item));
+
+  updateHistoryFilterSummary(total, filteredHistory.length);
+
+  if (!filteredHistory.length) {
+    list.appendChild(createEmptyHistoryMessage('没有匹配的历史记录\n试试更换关键词或筛选条件'));
+    return;
+  }
+
+  filteredHistory.forEach(({ item, idx }) => {
     const thumbSrc = item._thumbSrc || item.thumb || '';
 
     // 缩略图
@@ -167,32 +228,83 @@ export function renderHistory() {
 
     // 信息区
     const info = el('div', {
-      className: 'flex flex-col justify-center flex-1 min-w-0 pr-6',
+      className: 'flex flex-col justify-center flex-1 min-w-0',
     }, title, badgeRow, dateText);
+
+    const favBtn = el('button', {
+      className: `shrink-0 p-1.5 rounded-lg transition-all ${item.favorite ? 'text-amber-400 bg-amber-400/10' : 'text-on-surface-variant/60 group-hover:text-on-surface-variant hover:text-amber-400 hover:bg-amber-400/10'}`,
+      title: item.favorite ? '取消收藏' : '收藏这条记录',
+      'aria-label': item.favorite ? '取消收藏' : '收藏这条记录',
+    }, icon(item.favorite ? 'star' : 'star_border', 'text-[16px]'));
 
     // 删除按钮
     const delBtn = el('button', {
-      className: 'hd absolute top-2 right-2 p-1 text-error/0 group-hover:text-error hover:bg-error/10 rounded transition-all',
+      className: 'hd shrink-0 p-1.5 text-on-surface-variant/60 group-hover:text-error hover:text-error hover:bg-error/10 rounded-lg transition-all',
     }, icon('delete', 'text-[16px]'));
+
+    const actionCol = el('div', {
+      className: 'flex flex-col items-center justify-start gap-1 pt-1 shrink-0',
+    }, favBtn, delBtn);
 
     // 行容器
     const row = el('div', {
       className: 'flex gap-3 group cursor-pointer hover:bg-surface-container-high/40 p-2 rounded-xl transition-all duration-300 relative border border-transparent hover:border-outline-variant/30',
-    }, thumbBox, info, delBtn);
+    }, thumbBox, info, actionCol);
 
     // 绑定事件
     row.onclick = () => showHistoryDetail(item, idx);
 
+    favBtn.onclick = (e) => {
+      e.stopPropagation();
+      item.favorite = !item.favorite;
+      persistHistoryData();
+      bus.emit('historyData:change');
+      showToast(item.favorite ? '已收藏' : '已取消收藏');
+    };
+
     delBtn.onclick = (e) => {
       e.stopPropagation();
       state.historyData.splice(idx, 1);
-      if (localFS.isActive()) localFS.saveJSON('history.json', state.historyData).catch(() => {});
-      else idb.set('nanscript_history_db', state.historyData);
+      persistHistoryData();
       bus.emit('historyData:change');
     };
 
     list.appendChild(row);
   });
+}
+
+export function initHistoryFilters() {
+  const search = $('historySearchInput');
+  const engine = $('historyEngineFilter');
+  const favorite = $('historyFavoriteFilter');
+
+  if (search && !search.dataset.bound) {
+    search.addEventListener('input', () => {
+      historyFilters.query = normalizeText(search.value);
+      renderHistory();
+    });
+    search.dataset.bound = 'true';
+  }
+
+  if (engine && !engine.dataset.bound) {
+    engine.addEventListener('change', () => {
+      historyFilters.engine = engine.value || 'all';
+      renderHistory();
+    });
+    engine.dataset.bound = 'true';
+  }
+
+  if (favorite && !favorite.dataset.bound) {
+    favorite.addEventListener('click', () => {
+      historyFilters.favoriteOnly = !historyFilters.favoriteOnly;
+      favorite.classList.toggle('text-amber-400', historyFilters.favoriteOnly);
+      favorite.classList.toggle('border-amber-400/40', historyFilters.favoriteOnly);
+      favorite.classList.toggle('bg-amber-400/10', historyFilters.favoriteOnly);
+      favorite.title = historyFilters.favoriteOnly ? '显示全部历史' : '只看收藏';
+      renderHistory();
+    });
+    favorite.dataset.bound = 'true';
+  }
 }
 
 /**

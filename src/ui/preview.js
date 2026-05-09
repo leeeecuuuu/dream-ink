@@ -11,12 +11,111 @@ import { localFS } from '../storage/local-fs.js';
 import { idb } from '../storage/idb.js';
 import { bus } from '../utils/event-bus.js';
 
+const REF_ROLE_OPTIONS = [
+  { value: 'subject', label: '主体参考' },
+  { value: 'style', label: '风格参考' },
+  { value: 'composition', label: '构图参考' },
+];
+
+const LARGE_FILE_BYTES = 8 * 1024 * 1024;
+const LARGE_IMAGE_SIDE = 4096;
+
+function formatFileSize(bytes = 0) {
+  if (!bytes) return '未知大小';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function ensureRefRoles() {
+  if (!Array.isArray(state.selectedRefRoles)) state.selectedRefRoles = [];
+  state.selectedRefRoles = state.selectedFiles.map((_, idx) => state.selectedRefRoles[idx] || 'subject');
+}
+
+function moveItem(arr, from, to) {
+  if (!Array.isArray(arr) || from === to) return;
+  const [item] = arr.splice(from, 1);
+  arr.splice(to, 0, item);
+}
+
+function persistRefState() {
+  Promise.all(state.selectedFiles.map(fileToB64)).then(async (b64s) => {
+    if (localFS.isActive()) {
+      const refFiles = [];
+      for (let i = 0; i < b64s.length; i++) {
+        const fname = `current_ref_${i}.png`;
+        await localFS.saveImage(fname, b64s[i], 'refs').catch(() => {});
+        refFiles.push(fname);
+      }
+      await localFS.saveJSON('current_refs.json', refFiles).catch(() => {});
+      await localFS.saveJSON('current_masks.json', state.selectedMasks || []).catch(() => {});
+      await localFS.saveJSON('current_ref_roles.json', state.selectedRefRoles || []).catch(() => {});
+    } else {
+      idb.set('nanscript_current_refs', b64s);
+      idb.set('nanscript_current_masks', state.selectedMasks || []);
+      idb.set('nanscript_current_ref_roles', state.selectedRefRoles || []);
+    }
+  }).catch(() => {});
+}
+
 export function renderPreviews() {
   const list = $('imagePreviewList');
   if (!list) return;
+  ensureRefRoles();
   list.innerHTML = '';
+
+  if (state.selectedFiles.length) {
+    const toolbar = el('div', {
+      className: 'w-full flex items-center justify-between gap-2 mt-2 rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-3 py-2',
+    },
+      el('span', {
+        className: 'text-[10px] text-on-surface-variant font-bold tracking-widest',
+        textContent: `已添加 ${state.selectedFiles.length}/10 张参考图`,
+      }),
+      el('button', {
+        type: 'button',
+        className: 'text-[10px] font-bold text-error hover:bg-error/10 px-2 py-1 rounded-lg transition-colors flex items-center gap-1',
+        onclick: () => {
+          state.selectedFiles = [];
+          state.selectedMasks = [];
+          state.selectedRefRoles = [];
+          bus.emit('selectedFiles:change');
+        },
+      }, icon('delete_sweep', 'text-[14px]'), '清空全部')
+    );
+    list.appendChild(toolbar);
+  }
+
   state.selectedFiles.forEach((f, i) => {
-    const wrapper = el('div', { className: 'relative group w-20 h-20 rounded-md mt-2' });
+    const wrapper = el('div', {
+      className: 'relative group w-[132px] rounded-xl mt-2 border border-outline-variant/60 bg-surface-container-lowest p-2 shadow-sm transition-colors hover:border-primary/40',
+      draggable: 'true',
+      dataset: { index: String(i) },
+    });
+
+    wrapper.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+      wrapper.classList.add('opacity-50');
+    });
+    wrapper.addEventListener('dragend', () => wrapper.classList.remove('opacity-50'));
+    wrapper.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      wrapper.classList.add('border-primary');
+    });
+    wrapper.addEventListener('dragleave', () => wrapper.classList.remove('border-primary'));
+    wrapper.addEventListener('drop', (e) => {
+      e.preventDefault();
+      wrapper.classList.remove('border-primary');
+      const from = Number(e.dataTransfer.getData('text/plain'));
+      const to = i;
+      if (!Number.isInteger(from) || from === to) return;
+      moveItem(state.selectedFiles, from, to);
+      moveItem(state.selectedMasks, from, to);
+      moveItem(state.selectedRefRoles, from, to);
+      bus.emit('selectedFiles:change');
+    });
+
+    const thumbWrap = el('div', { className: 'relative w-20 h-20 mx-auto' });
 
     // 缩略图 canvas（80x80，使用 object-cover 裁剪保持比例）
     const previewCanvas = el('canvas', {
@@ -96,6 +195,17 @@ export function renderPreviews() {
     const baseImg = new Image();
     let hiResDataUrl = ''; // 缓存高清合成图供悬停用
 
+    const metaText = el('div', {
+      className: 'mt-2 text-[10px] text-on-surface-variant text-center leading-snug truncate',
+      textContent: `读取中 · ${formatFileSize(f.size)}`,
+    });
+
+    const warnText = el('div', {
+      className: 'hidden mt-1 text-[10px] text-amber-500 text-center leading-snug',
+      textContent: '图片较大，建议压缩后上传',
+      title: '较大的参考图可能增加请求耗时或导致接口拒绝',
+    });
+
     baseImg.onload = () => {
       // 1. 绘制缩略图（object-cover 裁剪）
       pCtx.clearRect(0, 0, 80, 80);
@@ -149,6 +259,13 @@ export function renderPreviews() {
       buildHiResComposite(baseImg, maskDataUrl, (dataUrl) => {
         hiResDataUrl = dataUrl;
       });
+
+      const width = baseImg.naturalWidth || baseImg.width || 0;
+      const height = baseImg.naturalHeight || baseImg.height || 0;
+      metaText.textContent = `${width}×${height} · ${formatFileSize(f.size)}`;
+      if (f.size > LARGE_FILE_BYTES || width > LARGE_IMAGE_SIDE || height > LARGE_IMAGE_SIDE) {
+        warnText.classList.remove('hidden');
+      }
     };
     baseImg.src = objectUrl;
 
@@ -225,34 +342,37 @@ export function renderPreviews() {
     closeBtn.onclick = () => { 
       state.selectedFiles.splice(i, 1); 
       // 清理相关 mask
-      if (state.selectedMasks && state.selectedMasks[i]) {
-        state.selectedMasks.splice(i, 1);
-      }
+      if (Array.isArray(state.selectedMasks)) state.selectedMasks.splice(i, 1);
+      if (Array.isArray(state.selectedRefRoles)) state.selectedRefRoles.splice(i, 1);
       URL.revokeObjectURL(objectUrl);
       bus.emit('selectedFiles:change'); 
     };
-    wrapper.append(previewCanvas, brushBtn, closeBtn);
+
+    const roleSelect = el('select', {
+      className: 'mt-2 w-full bg-surface-container border border-outline-variant rounded-lg px-1.5 py-1 text-[10px] text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/30 cursor-pointer',
+      title: '标注这张参考图的用途',
+      onchange: (e) => {
+        state.selectedRefRoles[i] = e.target.value;
+        persistRefState();
+      },
+    }, ...REF_ROLE_OPTIONS.map(opt => el('option', {
+      value: opt.value,
+      textContent: opt.label,
+      selected: (state.selectedRefRoles[i] || 'subject') === opt.value,
+    })));
+
+    const dragHint = el('div', {
+      className: 'absolute top-1 left-1 text-on-surface-variant/60 cursor-grab z-[60]',
+      title: '拖拽调整顺序',
+    }, icon('drag_indicator', 'text-[14px]'));
+
+    thumbWrap.append(previewCanvas, brushBtn, closeBtn, dragHint);
+    wrapper.append(thumbWrap, metaText, warnText, roleSelect);
     list.appendChild(wrapper);
   });
 
-  // 持久化垫图
-  Promise.all(state.selectedFiles.map(fileToB64)).then(async (b64s) => {
-    if (localFS.isActive()) {
-      const refFiles = [];
-      for (let i = 0; i < b64s.length; i++) {
-        const fname = `current_ref_${i}.png`;
-        await localFS.saveImage(fname, b64s[i], 'refs').catch(() => {});
-        refFiles.push(fname);
-      }
-      await localFS.saveJSON('current_refs.json', refFiles).catch(() => {});
-      // 同时持久化蒙版（data URL 字符串数组）
-      await localFS.saveJSON('current_masks.json', state.selectedMasks || []).catch(() => {});
-    } else {
-      idb.set('nanscript_current_refs', b64s);
-      // 同时持久化蒙版
-      idb.set('nanscript_current_masks', state.selectedMasks || []);
-    }
-  }).catch(() => {});
+  // 持久化垫图、蒙版与用途标注
+  persistRefState();
 }
 
 // 订阅事件总线
