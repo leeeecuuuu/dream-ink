@@ -70,6 +70,15 @@ export const ApiConfigModal = `
                             <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">密钥 (API Key)</label>
                             <input type="password" id="openaiApiKey" placeholder="sk-..." class="w-full bg-surface-container border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary">
                         </div>
+                        <div class="space-y-1.5 mt-2">
+                            <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">GPT 请求格式</label>
+                            <select id="gptApiFormat" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-xs text-on-surface py-2 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="images" selected>Images API (默认，兼容大多数代理)</option>
+                                <option value="responses">Responses API (/v1/responses)</option>
+                                <option value="chat">Chat Completions (适合纯聊天代理)</option>
+                            </select>
+                            <p class="text-[10px] text-outline leading-relaxed">切换 Gemini 引擎时此选项无效。Responses 需接口/模型支持 image_generation tool；响应格式自动识别，无需额外配置。</p>
+                        </div>
                     </div>
                     <!-- 隐藏的 apiTypeSelect，由引擎切换器驱动，不再暴露给用户 -->
                     <select id="apiTypeSelect" class="hidden">
@@ -80,16 +89,6 @@ export const ApiConfigModal = `
                     <select id="modelSelect" class="hidden"></select>
                     <input type="text" id="modelInput" class="hidden">
 
-                    <!-- GPT 请求格式选择 -->
-                    <div class="space-y-1.5 mt-2">
-                        <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">GPT 请求格式</label>
-                        <select id="gptApiFormat" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-xs text-on-surface py-2 px-3 focus:ring-1 focus:border-primary cursor-pointer">
-                            <option value="images" selected>Images API (默认，兼容大多数代理)</option>
-                            <option value="responses">Responses API (/v1/responses)</option>
-                            <option value="chat">Chat Completions (适合纯聊天代理)</option>
-                        </select>
-                        <p class="text-[10px] text-outline leading-relaxed">切换 Gemini 引擎时此选项无效。Responses 需接口/模型支持 image_generation tool；响应格式自动识别，无需额外配置。</p>
-                    </div>
                 </div>
 
                 <!-- 双引擎模型配置 -->

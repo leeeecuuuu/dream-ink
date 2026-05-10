@@ -56,6 +56,19 @@ const QUALITY_IMAGE_SIZE_LABEL = {
   standard: "1K",
 };
 
+const QUALITY_PROMPT_HINT = {
+  standard: ", clean details, balanced sharpness, clear subject",
+  high: ", high details, clear, 2K detail level, sharp focus, crisp edges, high detail texture",
+  ultra:
+    ", masterpiece, best quality, ultra detailed, 4K detail level, extremely sharp focus, high detail texture, no downscaling, crisp edges, cinematic lighting",
+};
+
+const IMAGE_SIZE_PROMPT_HINT = {
+  "1K": QUALITY_PROMPT_HINT.standard,
+  "2K": QUALITY_PROMPT_HINT.high,
+  "4K": QUALITY_PROMPT_HINT.ultra,
+};
+
 /** 调试日志开关（默认开启，便于排查 Banana/Gemini 请求问题） */
 const GENERATION_DEBUG_ENABLED = true;
 const GENERATION_DEBUG_MAX_ENTRIES = 200;
@@ -791,30 +804,62 @@ function createImageConfig(aspectRatio, imageSize) {
   return { aspectRatio, imageSize };
 }
 
+function createSnakeImageConfig(aspectRatio, imageSize) {
+  return { aspect_ratio: aspectRatio, image_size: imageSize };
+}
+
+function isLikelyOfficialGoogleEndpoint(baseUrl = "") {
+  try {
+    const { hostname } = new URL(baseUrl);
+    return /(^|\.)(googleapis\.com|generativelanguage\.google|aiplatform\.googleapis\.com)$/i.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
 function applyCompatImageConfig(target, { size, imageSize, aspectRatio }, options = {}) {
   if (!size) return;
 
   const imageConfig = createImageConfig(aspectRatio, imageSize);
-  const generationConfig = { imageConfig };
+  const snakeImageConfig = createSnakeImageConfig(aspectRatio, imageSize);
+  const responseModalities = ["TEXT", "IMAGE"];
+  const generationConfig = { responseModalities, imageConfig };
+  const generation_config = {
+    response_modalities: responseModalities,
+    image_config: snakeImageConfig,
+  };
 
   if (options.formData) {
-    appendIfPresent(target, "image_size", size);
+    appendIfPresent(target, "size", size);
+    // Gemini 官方高清参数是 imageConfig.imageSize = "1K"/"2K"/"4K"。
+    // 很多 OpenAI 兼容网关会把 image_size 映射到该枚举；若传 3840x2160 反而会被忽略并降级默认低清。
+    appendIfPresent(target, "image_size", imageSize);
+    appendIfPresent(target, "resolution", size);
     appendIfPresent(target, "imageSize", imageSize);
     appendIfPresent(target, "aspect_ratio", aspectRatio);
+    appendIfPresent(target, "image_config", JSON.stringify(snakeImageConfig));
     appendIfPresent(target, "imageConfig", JSON.stringify(imageConfig));
+    appendIfPresent(target, "generation_config", JSON.stringify(generation_config));
     appendIfPresent(target, "generationConfig", JSON.stringify(generationConfig));
+    appendIfPresent(target, "response_modalities", JSON.stringify(responseModalities));
     return;
   }
 
   target.size = size;
-  target.image_size = size;
+  target.image_size = imageSize;
+  target.resolution = size;
   target.imageSize = imageSize;
   target.aspect_ratio = aspectRatio;
+  target.image_config = snakeImageConfig;
   target.imageConfig = imageConfig;
+  target.generation_config = generation_config;
   target.generationConfig = generationConfig;
+  target.response_modalities = responseModalities;
   target.config = {
-    responseModalities: ["TEXT", "IMAGE"],
+    responseModalities,
+    response_modalities: responseModalities,
     imageConfig,
+    image_config: snakeImageConfig,
   };
 }
 
@@ -1154,14 +1199,16 @@ export async function executeGeneration(custom = {}) {
           ? "image/webp"
           : "image/png";
 
-    const enhance = {
-      high:
-        ", high details, clear, native 4k, 3840x2160 resolution, sharp focus, crisp edges, high detail texture",
-      ultra:
-        ", masterpiece, best quality, ultra detailed, native 4k, 3840x2160 resolution, extremely sharp focus, high detail texture, no downscaling, crisp edges, cinematic lighting",
-    };
+    const requestedImageSizeForPrompt =
+      apiType === "gemini"
+        ? normalizeBananaImageSize(custom.imageSize || bananaImageSize)
+        : QUALITY_IMAGE_SIZE_LABEL[quality] || QUALITY_IMAGE_SIZE_LABEL.standard;
+    const promptQualityHint =
+      apiType === "gemini"
+        ? IMAGE_SIZE_PROMPT_HINT[requestedImageSizeForPrompt] || ""
+        : QUALITY_PROMPT_HINT[quality] || "";
     const basePrompt =
-      (prompt || "Generate an image") + (enhance[quality] || "");
+      (prompt || "Generate an image") + promptQualityHint;
     // 防改写：仅对 OpenAI 格式生效
     const rewriteGuardEnabled =
       useOpenAICompat && $("rewriteGuardToggle")?.checked;
@@ -1305,13 +1352,17 @@ export async function executeGeneration(custom = {}) {
             model: finalModel,
             size: reqBody.size,
             image_size: reqBody.image_size,
+            resolution: reqBody.resolution,
             imageSize: reqBody.imageSize,
             aspect_ratio: reqBody.aspect_ratio,
+            image_config: reqBody.image_config,
             imageConfig: reqBody.imageConfig,
             quality: reqBody.quality,
             output_format: reqBody.output_format,
             background: reqBody.background,
+            generation_config: reqBody.generation_config,
             generationConfig: reqBody.generationConfig,
+            response_modalities: reqBody.response_modalities,
             config: reqBody.config,
             contentPartTypes: contentParts.map((part) => part.type),
           });
@@ -1359,9 +1410,13 @@ export async function executeGeneration(custom = {}) {
             model: finalModel,
             imageGenerationTool,
             image_size: reqBody.image_size,
+            resolution: reqBody.resolution,
             imageSize: reqBody.imageSize,
             aspect_ratio: reqBody.aspect_ratio,
+            image_config: reqBody.image_config,
             imageConfig: reqBody.imageConfig,
+            generation_config: reqBody.generation_config,
+            response_modalities: reqBody.response_modalities,
             inputContentPartTypes: contentParts.map((part) => part.type),
           });
 
@@ -1508,13 +1563,21 @@ export async function executeGeneration(custom = {}) {
             const directCandidates = [
               value.url,
               value.image_url,
+              value.image_urls,
               value.imageUrl,
+              value.imageUrls,
               value.output_url,
+              value.outputUrl,
+              value.output_image,
+              value.outputImage,
               value.result,
+              value.results,
               value.b64_json,
               value.base64,
               value.image_base64,
               value.imageBase64,
+              value.bytesBase64Encoded,
+              value.bytes_base64_encoded,
               value.data,
             ];
             for (const candidate of directCandidates) {
@@ -1531,10 +1594,15 @@ export async function executeGeneration(custom = {}) {
               value.image,
               value.file,
               value.content,
+              value.message,
+              value.delta,
               value.parts,
+              value.attachments,
               value.items,
               value.images,
+              value.files,
               value.output,
+              value.candidates,
             ];
             for (const candidate of nestedCandidates) {
               const found = extractImageSrcFromValue(candidate);
@@ -1574,12 +1642,12 @@ export async function executeGeneration(custom = {}) {
 
         if (!src && Array.isArray(data?.output)) {
           const imgOutput = data.output.find(
-            (o) => o.type === "image_generation_call" && o.result,
+            (o) =>
+              ((o.type === "image_generation_call" || o.type === "output_image") &&
+                (o.result || o.image || o.data || o.content)),
           );
           if (imgOutput) {
-            src = imgOutput.result.startsWith("data:")
-              ? imgOutput.result
-              : `data:${mimeType};base64,${imgOutput.result}`;
+            src = extractImageSrcFromValue(imgOutput);
           }
         }
 
@@ -1680,13 +1748,14 @@ export async function executeGeneration(custom = {}) {
         return { text: finalPrompt, image: src };
       } else {
         // ===== Gemini 请求 =====
+        const useOfficialGoogleEndpoint = isLikelyOfficialGoogleEndpoint(base);
         const parts = imgs.map((i) => {
           const str = String(i || "");
           const mimeMatch = str.match(/^data:([^;]+);base64,/i);
           return {
-            inline_data: {
+            inlineData: {
               // 与 @google/genai 脚本一致：保留用户上传图片的真实 MIME，避免 PNG 被误报为 JPEG。
-              mime_type: mimeMatch?.[1] || "image/png",
+              mimeType: mimeMatch?.[1] || "image/png",
               data: str.includes(",") ? str.split(",")[1] : str,
             },
           };
@@ -1710,13 +1779,18 @@ export async function executeGeneration(custom = {}) {
           bananaResponseModalities
         ] || ["IMAGE"];
 
-        const payload = {
-          contents: [{ role: "user", parts }],
-          generationConfig: {
-            responseModalities,
-            ...(Object.keys(imageConfig).length ? { imageConfig } : {}),
-          },
+        // 尽量贴近可成功出 4K 的 @google/genai 写法：
+        // ai.models.generateContent({ model, config: { responseModalities, imageConfig }, contents: [{ parts }] })
+        // 官方 REST 实际字段仍是 generationConfig；第三方/oneapi 额外保留 config，便于复用 SDK 入参映射。
+        const sdkStyleConfig = {
+          responseModalities,
+          ...(Object.keys(imageConfig).length ? { imageConfig } : {}),
         };
+        const payload = {
+          contents: [{ parts }],
+          generationConfig: sdkStyleConfig,
+        };
+        if (!useOfficialGoogleEndpoint) payload.config = sdkStyleConfig;
         if (bananaEnableGoogleSearch) {
           payload.tools = [{ google_search: {} }];
         }
@@ -1727,7 +1801,9 @@ export async function executeGeneration(custom = {}) {
         const cleanGeminiBase = base.replace(/\/+$/, "");
         const geminiApiBase = /\/v1(?:beta)?$/i.test(cleanGeminiBase)
           ? cleanGeminiBase
-          : `${cleanGeminiBase}/v1beta`;
+          : useOfficialGoogleEndpoint
+            ? `${cleanGeminiBase}/v1beta`
+            : cleanGeminiBase;
         // 自定义渠道模型名可能包含中文/特殊字符。
         // 某些 oneapi / 代理网关会按“原始模型名”进行精确匹配，
         // 若这里做 encodeURIComponent，可能导致带中文或【】后缀的模型名无法被识别。
@@ -1758,12 +1834,15 @@ export async function executeGeneration(custom = {}) {
           requestPathMode,
           cleanGeminiBase,
           geminiApiBase,
+          useOfficialGoogleEndpoint,
+          sdkStylePayload: !useOfficialGoogleEndpoint,
           finalUrl: sanitizeUrlForLog(geminiUrl),
           payloadSummary: {
             contentsCount: payload.contents?.length || 0,
             partsCount: parts.length,
             responseModalities,
             imageConfig,
+            hasConfigAlias: !!payload.config,
             hasTools: !!payload.tools?.length,
           },
         });
@@ -1857,7 +1936,12 @@ export async function executeGeneration(custom = {}) {
 
     const expectedResolution = (() => {
       if (useOpenAICompat) {
-        const openaiSize = apiType === "gemini" ? mappedBananaCompatSize : ratio;
+        // 这里要用“实际发给接口的 size”做校验，而不是原始 UI ratio。
+        // 例如官方 gpt-image-1 只接受 1024x1024 / 1536x1024 / 1024x1536 / auto，
+        // 用户选 16:9 时请求体会被规范化为 1536x1024；若仍按 16:9 或 3840x2160 校验会误报。
+        const openaiSize = apiType === "gemini"
+          ? mappedBananaCompatSize
+          : mapOpenAIImageSize(ratio, finalModel);
         const [width, height] = String(openaiSize || "")
           .split("x")
           .map((value) => Number(value));
