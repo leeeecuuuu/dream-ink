@@ -29,26 +29,39 @@ const PROMPT_REWRITE_GUARD_PREFIX =
 const BANANA_COMPAT_SIZE_MAP = {
   "1K": {
     "1:1": "1024x1024",
+    "3:2": "1536x1024",
+    "2:3": "1024x1536",
     "16:9": "1024x576",
     "9:16": "576x1024",
     "4:3": "1024x768",
     "3:4": "768x1024",
+    "21:9": "2384x1024",
   },
   "2K": {
     "1:1": "2048x2048",
+    "3:2": "2048x1360",
+    "2:3": "1360x2048",
     "16:9": "1920x1080",
     "9:16": "1080x1920",
     "4:3": "2048x1536",
     "3:4": "1536x2048",
+    "21:9": "2048x880",
   },
   "4K": {
     "1:1": "3840x3840",
+    "3:2": "3840x2560",
+    "2:3": "2560x3840",
     "16:9": "3840x2160",
     "9:16": "2160x3840",
     "4:3": "3840x2880",
     "3:4": "2880x3840",
+    "21:9": "3840x1648",
   },
 };
+
+const BANANA_SUPPORTED_ASPECT_RATIOS = Object.freeze(
+  Object.keys(BANANA_COMPAT_SIZE_MAP["4K"]),
+);
 
 const QUALITY_IMAGE_SIZE_LABEL = {
   ultra: "4K",
@@ -794,6 +807,40 @@ function normalizeBananaImageSize(imageSize = "1K") {
   return ["1K", "2K", "4K"].includes(normalized) ? normalized : "1K";
 }
 
+function gcd(a, b) {
+  const left = Math.abs(Number(a) || 0);
+  const right = Math.abs(Number(b) || 0);
+  return right ? gcd(right, left % right) : left;
+}
+
+function aspectRatioFromPixelSize(size = "") {
+  const match = String(size || "").trim().match(/^(\d+)x(\d+)$/i);
+  if (!match) return "";
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!width || !height) return "";
+  const divisor = gcd(width, height) || 1;
+  return `${width / divisor}:${height / divisor}`;
+}
+
+function normalizeBananaAspectRatio(aspectRatio = "1:1") {
+  const raw = String(aspectRatio || "1:1").trim();
+  const ratio = raw.includes("x") ? aspectRatioFromPixelSize(raw) : raw;
+  if (BANANA_SUPPORTED_ASPECT_RATIOS.includes(ratio)) return ratio;
+  return "1:1";
+}
+
+function createBananaImageRequestConfig(aspectRatio = "1:1", imageSize = "1K") {
+  const normalizedImageSize = normalizeBananaImageSize(imageSize);
+  const normalizedAspectRatio = normalizeBananaAspectRatio(aspectRatio);
+  const pixelSize = mapBananaCompatSize(normalizedAspectRatio, normalizedImageSize);
+  return {
+    aspectRatio: normalizedAspectRatio,
+    imageSize: normalizedImageSize,
+    pixelSize,
+  };
+}
+
 function appendIfPresent(target, key, value) {
   if (value !== undefined && value !== null && value !== "") {
     target.append(key, value);
@@ -817,7 +864,25 @@ function isLikelyOfficialGoogleEndpoint(baseUrl = "") {
   }
 }
 
-function applyCompatImageConfig(target, { size, imageSize, aspectRatio }, options = {}) {
+function isLikelyOfficialOpenAIEndpoint(baseUrl = "") {
+  try {
+    const { hostname } = new URL(baseUrl);
+    return /(^|\.)api\.openai\.com$/i.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
+function parsePixelSize(size = "") {
+  const match = String(size || "").trim().match(/^(\d+)x(\d+)$/i);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!width || !height) return null;
+  return { width, height };
+}
+
+function applyCompatImageConfig(target, { size, imageSize, aspectRatio, width, height }, options = {}) {
   if (!size) return;
 
   const imageConfig = createImageConfig(aspectRatio, imageSize);
@@ -836,6 +901,9 @@ function applyCompatImageConfig(target, { size, imageSize, aspectRatio }, option
     appendIfPresent(target, "image_size", imageSize);
     appendIfPresent(target, "resolution", size);
     appendIfPresent(target, "imageSize", imageSize);
+    appendIfPresent(target, "dimensions", size);
+    appendIfPresent(target, "width", width);
+    appendIfPresent(target, "height", height);
     appendIfPresent(target, "aspect_ratio", aspectRatio);
     appendIfPresent(target, "image_config", JSON.stringify(snakeImageConfig));
     appendIfPresent(target, "imageConfig", JSON.stringify(imageConfig));
@@ -849,6 +917,11 @@ function applyCompatImageConfig(target, { size, imageSize, aspectRatio }, option
   target.image_size = imageSize;
   target.resolution = size;
   target.imageSize = imageSize;
+  target.dimensions = size;
+  if (width && height) {
+    target.width = width;
+    target.height = height;
+  }
   target.aspect_ratio = aspectRatio;
   target.image_config = snakeImageConfig;
   target.imageConfig = imageConfig;
@@ -890,7 +963,7 @@ function normalizeOpenAIImageQuality(quality = "standard", model = "") {
   return quality;
 }
 
-function mapOpenAIImageSize(size = "1024x1024", model = "") {
+function mapOpenAIImageSize(size = "1024x1024", model = "", options = {}) {
   const raw = String(size || "").trim().toLowerCase();
   if (raw === "auto") return "auto";
   const match = raw.match(/^(\d+)x(\d+)$/i);
@@ -898,12 +971,12 @@ function mapOpenAIImageSize(size = "1024x1024", model = "") {
   const width = Number(match[1]);
   const height = Number(match[2]);
 
-  if (isGptImageModel(model)) {
+  if (options.officialEndpoint && isGptImageModel(model)) {
     // OpenAI 官方 gpt-image-1 支持 auto、1024x1024、1536x1024、1024x1536。
     if (width === height) return "1024x1024";
     return width > height ? "1536x1024" : "1024x1536";
   }
-  if (/^dall-e-3$/i.test(String(model || "").trim())) {
+  if (options.officialEndpoint && /^dall-e-3$/i.test(String(model || "").trim())) {
     if (width === height) return "1024x1024";
     return width > height ? "1792x1024" : "1024x1792";
   }
@@ -1175,9 +1248,7 @@ export async function executeGeneration(custom = {}) {
     const resolvedRequestFormat =
       apiType === "openai"
         ? "openai-compatible"
-        : bananaApiFormat === "gemini"
-          ? "gemini-native"
-          : "openai-compatible";
+        : "gemini-native";
     const useOpenAICompat = resolvedRequestFormat === "openai-compatible";
     const gptApiFormat = $("gptApiFormat")?.value || "images";
     // Gemini/Banana 走 OpenAI 兼容时，默认应优先使用 /chat/completions。
@@ -1215,12 +1286,15 @@ export async function executeGeneration(custom = {}) {
     const finalPrompt = rewriteGuardEnabled
       ? `${PROMPT_REWRITE_GUARD_PREFIX}\n${basePrompt}`
       : basePrompt;
-    const bananaCompatAspectRatio = custom.aspectRatio || bananaAspectRatio;
-    const bananaCompatImageSize = normalizeBananaImageSize(custom.imageSize || bananaImageSize);
-    const mappedBananaCompatSize = mapBananaCompatSize(
-      bananaCompatAspectRatio,
-      bananaCompatImageSize,
+    const bananaImageRequest = createBananaImageRequestConfig(
+      custom.aspectRatio || bananaAspectRatio,
+      custom.imageSize || bananaImageSize,
     );
+    const bananaCompatAspectRatio = bananaImageRequest.aspectRatio;
+    const bananaCompatImageSize = bananaImageRequest.imageSize;
+    const mappedBananaCompatSize = bananaImageRequest.pixelSize;
+    const displayRatio = apiType === "gemini" ? mappedBananaCompatSize : ratio;
+    const displayQuality = apiType === "gemini" ? bananaCompatImageSize : quality;
 
     generationDebug("execute:request-context", {
       apiType,
@@ -1262,6 +1336,7 @@ export async function executeGeneration(custom = {}) {
         const baseUrlForOpenAI = /\/v1$/i.test(cleanBase)
           ? cleanBase
           : `${cleanBase}/v1`;
+        const useOfficialOpenAIEndpoint = isLikelyOfficialOpenAIEndpoint(baseUrlForOpenAI);
 
         let fetchOptions = {
           method: "POST",
@@ -1272,24 +1347,38 @@ export async function executeGeneration(custom = {}) {
         let url;
         const rawOpenAIRequestedSize = apiType === "gemini" ? mappedBananaCompatSize : ratio;
         const openaiSize =
-          apiType === "gemini" ? mappedBananaCompatSize : mapOpenAIImageSize(ratio, finalModel);
+          apiType === "gemini"
+            ? mappedBananaCompatSize
+            : mapOpenAIImageSize(ratio, finalModel, {
+                officialEndpoint: useOfficialOpenAIEndpoint,
+              });
         const openaiImageSizeLabel =
           apiType === "gemini"
             ? bananaCompatImageSize
             : QUALITY_IMAGE_SIZE_LABEL[quality] || QUALITY_IMAGE_SIZE_LABEL.standard;
         const openaiAspectRatioLabel =
           apiType === "gemini" ? bananaCompatAspectRatio : ratio;
+        const openaiPixelSize = parsePixelSize(openaiSize);
         const compatImageConfig = {
           size: openaiSize,
-          imageSize: openaiImageSizeLabel,
+          imageSize:
+            apiType === "openai" && !useOfficialOpenAIEndpoint
+              ? openaiSize
+              : openaiImageSizeLabel,
           aspectRatio: openaiAspectRatioLabel,
+          width: openaiPixelSize?.width,
+          height: openaiPixelSize?.height,
         };
         const openaiQuality =
           apiType === "openai" ? normalizeOpenAIImageQuality(quality, finalModel) : quality;
-        const useOfficialGptImageParams = apiType === "openai" && isGptImageModel(finalModel);
+        const useOfficialGptImageParams =
+          apiType === "openai" && useOfficialOpenAIEndpoint && isGptImageModel(finalModel);
+        const shouldSendCompatImageConfig =
+          apiType === "gemini" || !useOfficialOpenAIEndpoint;
         const moderation = $("moderationSelect")?.value || "auto";
         generationDebug("openai:prepare-request", {
           urlBase: sanitizeUrlForLog(baseUrlForOpenAI),
+          useOfficialOpenAIEndpoint,
           apiType,
           resolvedRequestFormat,
           compatFormat,
@@ -1306,8 +1395,11 @@ export async function executeGeneration(custom = {}) {
           openaiSize,
           openaiImageSizeLabel,
           openaiAspectRatioLabel,
+          openaiPixelSize,
+          compatImageConfig,
           openaiQuality,
           useOfficialGptImageParams,
+          shouldSendCompatImageConfig,
           openaiSizeSource: apiType === "gemini" ? "banana-image-config-map" : "ratio",
           modelInBody: true,
           modelInPath: false,
@@ -1341,7 +1433,11 @@ export async function executeGeneration(custom = {}) {
             // - image_size: 常见 oneapi / 聚合模型风格
             // - imageSize / imageConfig / generationConfig / config: Gemini/Banana 风格
             // 同时传递这些非冲突字段，可恢复部分渠道历史版本的 2K/4K 出图能力。
-            applyCompatImageConfig(reqBody, compatImageConfig);
+            if (shouldSendCompatImageConfig) {
+              applyCompatImageConfig(reqBody, compatImageConfig);
+            } else {
+              reqBody.size = openaiSize;
+            }
           }
           if (openaiQuality) reqBody.quality = openaiQuality;
           if (outputFormat) reqBody.output_format = outputFormat;
@@ -1392,6 +1488,15 @@ export async function executeGeneration(custom = {}) {
 
           const imageGenerationTool = { type: "image_generation" };
           if (openaiSize && openaiSize !== "") imageGenerationTool.size = openaiSize;
+          if (shouldSendCompatImageConfig) {
+            imageGenerationTool.image_size = compatImageConfig.imageSize;
+            imageGenerationTool.imageSize = compatImageConfig.imageSize;
+            imageGenerationTool.dimensions = openaiSize;
+            if (compatImageConfig.width && compatImageConfig.height) {
+              imageGenerationTool.width = compatImageConfig.width;
+              imageGenerationTool.height = compatImageConfig.height;
+            }
+          }
           if (openaiQuality) imageGenerationTool.quality = openaiQuality;
           if (outputFormat) imageGenerationTool.output_format = outputFormat;
           if (bgStyle) imageGenerationTool.background = bgStyle;
@@ -1402,7 +1507,7 @@ export async function executeGeneration(custom = {}) {
             input: [{ role: "user", content: contentParts }],
             tools: [imageGenerationTool],
           };
-          if (apiType === "gemini") {
+          if (shouldSendCompatImageConfig) {
             applyCompatImageConfig(reqBody, compatImageConfig);
           }
 
@@ -1431,9 +1536,10 @@ export async function executeGeneration(custom = {}) {
             fd.append("model", finalModel);
             fd.append("prompt", finalPrompt);
             if (!useOfficialGptImageParams) fd.append("response_format", "b64_json");
-            if (openaiSize && openaiSize !== "") fd.append("size", openaiSize);
-            if (apiType === "gemini") {
+            if (shouldSendCompatImageConfig) {
               applyCompatImageConfig(fd, compatImageConfig, { formData: true });
+            } else if (openaiSize && openaiSize !== "") {
+              fd.append("size", openaiSize);
             }
             if (openaiQuality) fd.append("quality", openaiQuality);
             if (outputFormat) fd.append("output_format", outputFormat);
@@ -1457,9 +1563,10 @@ export async function executeGeneration(custom = {}) {
               prompt: finalPrompt,
             };
             if (!useOfficialGptImageParams) reqBody.response_format = "b64_json";
-            if (openaiSize && openaiSize !== "") reqBody.size = openaiSize;
-            if (apiType === "gemini") {
+            if (shouldSendCompatImageConfig) {
               applyCompatImageConfig(reqBody, compatImageConfig);
+            } else if (openaiSize && openaiSize !== "") {
+              reqBody.size = openaiSize;
             }
             if (openaiQuality) reqBody.quality = openaiQuality;
             if (outputFormat) reqBody.output_format = outputFormat;
@@ -1766,9 +1873,7 @@ export async function executeGeneration(custom = {}) {
           // 脚本能出高清的关键是这里传枚举值 2K/4K，而不是 OpenAI 风格的 2048x2048。
           imageSize: bananaCompatImageSize,
         };
-        if (custom.aspectRatio || bananaAspectRatio) {
-          imageConfig.aspectRatio = custom.aspectRatio || bananaAspectRatio;
-        }
+        imageConfig.aspectRatio = bananaCompatAspectRatio;
 
         const responseModalitiesMap = {
           IMAGE: ["IMAGE"],
@@ -1779,9 +1884,9 @@ export async function executeGeneration(custom = {}) {
           bananaResponseModalities
         ] || ["IMAGE"];
 
-        // 尽量贴近可成功出 4K 的 @google/genai 写法：
+        // 严格贴近可成功出 4K 的 @google/genai 写法：
         // ai.models.generateContent({ model, config: { responseModalities, imageConfig }, contents: [{ parts }] })
-        // 官方 REST 实际字段仍是 generationConfig；第三方/oneapi 额外保留 config，便于复用 SDK 入参映射。
+        // SDK 会把 config 转成 REST 请求体里的 generationConfig。
         const sdkStyleConfig = {
           responseModalities,
           ...(Object.keys(imageConfig).length ? { imageConfig } : {}),
@@ -1790,7 +1895,6 @@ export async function executeGeneration(custom = {}) {
           contents: [{ parts }],
           generationConfig: sdkStyleConfig,
         };
-        if (!useOfficialGoogleEndpoint) payload.config = sdkStyleConfig;
         if (bananaEnableGoogleSearch) {
           payload.tools = [{ google_search: {} }];
         }
@@ -1801,9 +1905,7 @@ export async function executeGeneration(custom = {}) {
         const cleanGeminiBase = base.replace(/\/+$/, "");
         const geminiApiBase = /\/v1(?:beta)?$/i.test(cleanGeminiBase)
           ? cleanGeminiBase
-          : useOfficialGoogleEndpoint
-            ? `${cleanGeminiBase}/v1beta`
-            : cleanGeminiBase;
+          : `${cleanGeminiBase}/v1beta`;
         // 自定义渠道模型名可能包含中文/特殊字符。
         // 某些 oneapi / 代理网关会按“原始模型名”进行精确匹配，
         // 若这里做 encodeURIComponent，可能导致带中文或【】后缀的模型名无法被识别。
@@ -1821,7 +1923,7 @@ export async function executeGeneration(custom = {}) {
           .filter(Boolean)
           .join("/");
         const requestPathMode = "raw-unencoded";
-        const geminiUrl = `${geminiApiBase}/models/${requestedModelPath}:generateContent?key=${encodeURIComponent(key)}`;
+        const geminiUrl = `${geminiApiBase}/models/${requestedModelPath}:generateContent`;
         generationDebug("gemini:prepare-request", {
           apiType,
           bananaApiFormat,
@@ -1842,7 +1944,6 @@ export async function executeGeneration(custom = {}) {
             partsCount: parts.length,
             responseModalities,
             imageConfig,
-            hasConfigAlias: !!payload.config,
             hasTools: !!payload.tools?.length,
           },
         });
@@ -1861,7 +1962,10 @@ export async function executeGeneration(custom = {}) {
         const url = geminiUrl;
         const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": key,
+          },
           body: JSON.stringify(payload),
           signal,
         });
@@ -1941,7 +2045,9 @@ export async function executeGeneration(custom = {}) {
         // 用户选 16:9 时请求体会被规范化为 1536x1024；若仍按 16:9 或 3840x2160 校验会误报。
         const openaiSize = apiType === "gemini"
           ? mappedBananaCompatSize
-          : mapOpenAIImageSize(ratio, finalModel);
+          : mapOpenAIImageSize(ratio, finalModel, {
+              officialEndpoint: isLikelyOfficialOpenAIEndpoint(base),
+            });
         const [width, height] = String(openaiSize || "")
           .split("x")
           .map((value) => Number(value));
@@ -1949,10 +2055,10 @@ export async function executeGeneration(custom = {}) {
         return null;
       }
 
-      const [width, height] = String(ratio || "")
+      const [width, height] = String(mappedBananaCompatSize || "")
         .split("x")
         .map((value) => Number(value));
-      if (width && height) return { width, height, source: ratio };
+      if (width && height) return { width, height, source: mappedBananaCompatSize };
       return null;
     })();
 
@@ -1972,6 +2078,9 @@ export async function executeGeneration(custom = {}) {
           requestedRatio: ratio,
           bananaAspectRatio,
           bananaImageSize,
+          bananaCompatAspectRatio,
+          bananaCompatImageSize,
+          mappedBananaCompatSize,
           expectedResolution,
           actualResolution,
           resolutionMismatch,
@@ -1996,13 +2105,16 @@ export async function executeGeneration(custom = {}) {
       const imageId =
         Date.now().toString() + "_" + Math.random().toString(36).slice(2, 6);
       const imageFile = localFS.isActive() ? `${imageId}.png` : null;
-      const galleryItem = createGalleryItemDOM(src, sec, ratio, quality);
+      const actualRatio = item.actualResolution
+        ? `${item.actualResolution.width}x${item.actualResolution.height}`
+        : displayRatio;
+      const galleryItem = createGalleryItemDOM(src, sec, actualRatio, displayQuality);
       galleryEl.prepend(galleryItem);
       state.currentGalleryData.unshift({
         src,
         sec,
-        ratio,
-        quality,
+        ratio: actualRatio,
+        quality: displayQuality,
         prompt: firstText,
         imageFile,
       });
@@ -2010,8 +2122,8 @@ export async function executeGeneration(custom = {}) {
         {
           prompt,
           model: finalModel,
-          aspectRatio: ratio,
-          quality,
+          aspectRatio: actualRatio,
+          quality: displayQuality,
           batchCount: count,
           masks: state.selectedMasks || [],
         },
@@ -2044,8 +2156,8 @@ export async function executeGeneration(custom = {}) {
     const mismatchCount = valid.filter((item) => item.resolutionMismatch).length;
     showToast(
       mismatchCount
-        ? `成功生成 ${valid.length} 张图像，但有 ${mismatchCount} 张未达到请求分辨率`
-        : `成功生成 ${valid.length} 张图像`,
+        ? `\u6210\u529f\u751f\u6210 ${valid.length} \u5f20\u56fe\u7247\uff0c\u4f46\u6709 ${mismatchCount} \u5f20\u672a\u8fbe\u5230\u8bf7\u6c42\u5206\u8fa8\u7387`
+        : `\u6210\u529f\u751f\u6210 ${valid.length} \u5f20\u56fe\u7247`,
     );
     results.style.display = "block";
     status.style.display = "none";
