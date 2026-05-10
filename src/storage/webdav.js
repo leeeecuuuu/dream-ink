@@ -38,7 +38,7 @@ const SYNC_FILES = [
       modelOpenai: $('modelOpenai')?.value || '',
       customModelsGemini: $('customModelsGemini')?.value || '',
       customModelsOpenai: $('customModelsOpenai')?.value || '',
-      bananaApiFormat: $('bananaApiFormat')?.value || 'openai',
+      bananaApiFormat: $('bananaApiFormat')?.value || 'gemini',
       gptApiFormat: $('gptApiFormat')?.value || 'images',
       moderationSelect: $('moderationSelect')?.value || 'auto',
       apiProfiles: Array.isArray(state.apiProfiles) ? state.apiProfiles : [],

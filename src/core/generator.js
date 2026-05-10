@@ -20,11 +20,41 @@ import { renderPreviews } from "../ui/preview.js";
 import { saveHistory } from "../ui/history.js";
 import { showToast } from "../ui/toast.js";
 import { el, icon } from "../utils/dom.js";
-import { $, fileToB64, compressImageDataUrl, resizeImageDataUrl } from "../utils/helpers.js";
+import { $, fileToB64, compressImageDataUrl, resizeImageDataUrl, base64ToBlob } from "../utils/helpers.js";
 
 /** 防改写前缀（参考自 gpt-image-playground） */
 const PROMPT_REWRITE_GUARD_PREFIX =
   "Use the following text as the complete prompt. Do not rewrite it:";
+
+const BANANA_COMPAT_SIZE_MAP = {
+  "1K": {
+    "1:1": "1024x1024",
+    "16:9": "1024x576",
+    "9:16": "576x1024",
+    "4:3": "1024x768",
+    "3:4": "768x1024",
+  },
+  "2K": {
+    "1:1": "2048x2048",
+    "16:9": "1920x1080",
+    "9:16": "1080x1920",
+    "4:3": "2048x1536",
+    "3:4": "1536x2048",
+  },
+  "4K": {
+    "1:1": "3840x3840",
+    "16:9": "3840x2160",
+    "9:16": "2160x3840",
+    "4:3": "3840x2880",
+    "3:4": "2880x3840",
+  },
+};
+
+const QUALITY_IMAGE_SIZE_LABEL = {
+  ultra: "4K",
+  high: "2K",
+  standard: "1K",
+};
 
 /** 调试日志开关（默认开启，便于排查 Banana/Gemini 请求问题） */
 const GENERATION_DEBUG_ENABLED = true;
@@ -742,32 +772,97 @@ function mapBananaCompatSize(aspectRatio = "1:1", imageSize = "1K") {
 
   if (/^\d+x\d+$/i.test(normalizedRatio)) return normalizedRatio;
 
-  const presetMap = {
-    "1K": {
-      "1:1": "1024x1024",
-      "16:9": "1024x576",
-      "9:16": "576x1024",
-      "4:3": "1024x768",
-      "3:4": "768x1024",
-    },
-    "2K": {
-      "1:1": "2048x2048",
-      "16:9": "1920x1080",
-      "9:16": "1080x1920",
-      "4:3": "2048x1536",
-      "3:4": "1536x2048",
-    },
-    "4K": {
-      "1:1": "3840x3840",
-      "16:9": "3840x2160",
-      "9:16": "2160x3840",
-      "4:3": "3840x2880",
-      "3:4": "2880x3840",
-    },
-  };
-
-  const resolvedSizeMap = presetMap[normalizedImageSize] || presetMap["1K"];
+  const resolvedSizeMap = BANANA_COMPAT_SIZE_MAP[normalizedImageSize] || BANANA_COMPAT_SIZE_MAP["1K"];
   return resolvedSizeMap[normalizedRatio] || resolvedSizeMap["1:1"];
+}
+
+function normalizeBananaImageSize(imageSize = "1K") {
+  const normalized = String(imageSize || "1K").trim().toUpperCase();
+  return ["1K", "2K", "4K"].includes(normalized) ? normalized : "1K";
+}
+
+function appendIfPresent(target, key, value) {
+  if (value !== undefined && value !== null && value !== "") {
+    target.append(key, value);
+  }
+}
+
+function createImageConfig(aspectRatio, imageSize) {
+  return { aspectRatio, imageSize };
+}
+
+function applyCompatImageConfig(target, { size, imageSize, aspectRatio }, options = {}) {
+  if (!size) return;
+
+  const imageConfig = createImageConfig(aspectRatio, imageSize);
+  const generationConfig = { imageConfig };
+
+  if (options.formData) {
+    appendIfPresent(target, "image_size", size);
+    appendIfPresent(target, "imageSize", imageSize);
+    appendIfPresent(target, "aspect_ratio", aspectRatio);
+    appendIfPresent(target, "imageConfig", JSON.stringify(imageConfig));
+    appendIfPresent(target, "generationConfig", JSON.stringify(generationConfig));
+    return;
+  }
+
+  target.size = size;
+  target.image_size = size;
+  target.imageSize = imageSize;
+  target.aspect_ratio = aspectRatio;
+  target.imageConfig = imageConfig;
+  target.generationConfig = generationConfig;
+  target.config = {
+    responseModalities: ["TEXT", "IMAGE"],
+    imageConfig,
+  };
+}
+
+function imageDataToBlob(imageData, fallbackMimeType = "image/png") {
+  const raw = String(imageData || "");
+  const dataUrl = raw.includes(",") ? raw : `data:${fallbackMimeType};base64,${raw}`;
+  return base64ToBlob(dataUrl);
+}
+
+function isGptImageModel(model = "") {
+  return /^gpt-image(?:-|$)/i.test(String(model || "").trim());
+}
+
+function normalizeOpenAIImageQuality(quality = "standard", model = "") {
+  const normalized = String(quality || "standard").trim().toLowerCase();
+  // OpenAI 官方 gpt-image-1 Images/Responses 参数为 auto/low/medium/high。
+  // UI 中的 standard/high/ultra 映射为官方可接受值，避免把 ultra 直接发给官方接口导致 400。
+  if (isGptImageModel(model)) {
+    if (normalized === "ultra" || normalized === "high" || normalized === "hd") return "high";
+    if (normalized === "low") return "low";
+    if (normalized === "auto") return "auto";
+    return "medium";
+  }
+  // DALL·E 3 仍常用 standard/hd；其它代理保持用户原值以兼容。
+  if (/^dall-e-3$/i.test(String(model || "").trim())) {
+    return normalized === "ultra" || normalized === "high" ? "hd" : "standard";
+  }
+  return quality;
+}
+
+function mapOpenAIImageSize(size = "1024x1024", model = "") {
+  const raw = String(size || "").trim().toLowerCase();
+  if (raw === "auto") return "auto";
+  const match = raw.match(/^(\d+)x(\d+)$/i);
+  if (!match) return raw || "1024x1024";
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+
+  if (isGptImageModel(model)) {
+    // OpenAI 官方 gpt-image-1 支持 auto、1024x1024、1536x1024、1024x1536。
+    if (width === height) return "1024x1024";
+    return width > height ? "1536x1024" : "1024x1536";
+  }
+  if (/^dall-e-3$/i.test(String(model || "").trim())) {
+    if (width === height) return "1024x1024";
+    return width > height ? "1792x1024" : "1024x1792";
+  }
+  return `${width}x${height}`;
 }
 
 /**
@@ -1026,12 +1121,12 @@ export async function executeGeneration(custom = {}) {
     const bananaAspectRatio = $("bananaAspectRatio")?.value || "1:1";
     const bananaImageSize = $("bananaImageSize")?.value || "1K";
     const bananaResponseModalities =
-      $("bananaResponseModalities")?.value || "IMAGE";
+      $("bananaResponseModalities")?.value || "TEXT_IMAGE";
     const bananaEnableGoogleSearch = !!$("bananaEnableGoogleSearch")?.checked;
-    const bananaApiFormat = $("bananaApiFormat")?.value || "openai";
+    const bananaApiFormat = $("bananaApiFormat")?.value || "gemini";
     // Banana 只是产品/模型分组名。
-    // 默认应按第三方 OpenAI 兼容中转处理；仅当用户明确选择 Gemini 原生时，
-    // 才允许走 /models/{model}:generateContent。
+    // gemini-3-pro-image-preview 等高清图模型应优先走 Gemini 原生 generateContent，
+    // 这样 imageConfig.imageSize 才会按 1K/2K/4K 枚举值生效。
     const resolvedRequestFormat =
       apiType === "openai"
         ? "openai-compatible"
@@ -1065,7 +1160,6 @@ export async function executeGeneration(custom = {}) {
       ultra:
         ", masterpiece, best quality, ultra detailed, native 4k, 3840x2160 resolution, extremely sharp focus, high detail texture, no downscaling, crisp edges, cinematic lighting",
     };
-    const sizeMap = { ultra: "4K", high: "2K", standard: "1K" };
     const basePrompt =
       (prompt || "Generate an image") + (enhance[quality] || "");
     // 防改写：仅对 OpenAI 格式生效
@@ -1075,7 +1169,7 @@ export async function executeGeneration(custom = {}) {
       ? `${PROMPT_REWRITE_GUARD_PREFIX}\n${basePrompt}`
       : basePrompt;
     const bananaCompatAspectRatio = custom.aspectRatio || bananaAspectRatio;
-    const bananaCompatImageSize = custom.imageSize || bananaImageSize;
+    const bananaCompatImageSize = normalizeBananaImageSize(custom.imageSize || bananaImageSize);
     const mappedBananaCompatSize = mapBananaCompatSize(
       bananaCompatAspectRatio,
       bananaCompatImageSize,
@@ -1128,20 +1222,24 @@ export async function executeGeneration(custom = {}) {
           signal,
         };
 
-        const _b64ToBlob = (b64) => {
-          const parts = b64.split(",");
-          const mime = parts[0].match(/:(.*?);/)[1] || "image/png";
-          const bstr = atob(parts[1]);
-          const u8arr = new Uint8Array(bstr.length);
-          for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
-          return new Blob([u8arr], { type: mime });
-        };
-
         let url;
+        const rawOpenAIRequestedSize = apiType === "gemini" ? mappedBananaCompatSize : ratio;
         const openaiSize =
-          apiType === "gemini" ? mappedBananaCompatSize : ratio;
+          apiType === "gemini" ? mappedBananaCompatSize : mapOpenAIImageSize(ratio, finalModel);
         const openaiImageSizeLabel =
-          quality === "ultra" ? "4K" : quality === "high" ? "2K" : "1K";
+          apiType === "gemini"
+            ? bananaCompatImageSize
+            : QUALITY_IMAGE_SIZE_LABEL[quality] || QUALITY_IMAGE_SIZE_LABEL.standard;
+        const openaiAspectRatioLabel =
+          apiType === "gemini" ? bananaCompatAspectRatio : ratio;
+        const compatImageConfig = {
+          size: openaiSize,
+          imageSize: openaiImageSizeLabel,
+          aspectRatio: openaiAspectRatioLabel,
+        };
+        const openaiQuality =
+          apiType === "openai" ? normalizeOpenAIImageQuality(quality, finalModel) : quality;
+        const useOfficialGptImageParams = apiType === "openai" && isGptImageModel(finalModel);
         const moderation = $("moderationSelect")?.value || "auto";
         generationDebug("openai:prepare-request", {
           urlBase: sanitizeUrlForLog(baseUrlForOpenAI),
@@ -1157,8 +1255,12 @@ export async function executeGeneration(custom = {}) {
           bananaAspectRatio,
           bananaImageSize,
           mappedBananaCompatSize,
+          rawOpenAIRequestedSize,
           openaiSize,
           openaiImageSizeLabel,
+          openaiAspectRatioLabel,
+          openaiQuality,
+          useOfficialGptImageParams,
           openaiSizeSource: apiType === "gemini" ? "banana-image-config-map" : "ratio",
           modelInBody: true,
           modelInPath: false,
@@ -1190,20 +1292,11 @@ export async function executeGeneration(custom = {}) {
             // 不同 OpenAI 兼容中转对 Chat 出图的高清参数支持并不一致：
             // - size: OpenAI 风格
             // - image_size: 常见 oneapi / 聚合模型风格
-            // - imageSize + generationConfig.imageConfig: Gemini/Banana 风格
+            // - imageSize / imageConfig / generationConfig / config: Gemini/Banana 风格
             // 同时传递这些非冲突字段，可恢复部分渠道历史版本的 2K/4K 出图能力。
-            reqBody.size = openaiSize;
-            reqBody.image_size = openaiSize;
-            reqBody.imageSize = openaiSize;
-            reqBody.aspect_ratio = openaiSize;
-            reqBody.generationConfig = {
-              imageConfig: {
-                aspectRatio: openaiSize,
-                imageSize: openaiImageSizeLabel,
-              },
-            };
+            applyCompatImageConfig(reqBody, compatImageConfig);
           }
-          if (quality) reqBody.quality = quality;
+          if (openaiQuality) reqBody.quality = openaiQuality;
           if (outputFormat) reqBody.output_format = outputFormat;
           if (bgStyle) reqBody.background = bgStyle;
           if (moderation !== "auto") reqBody.moderation = moderation;
@@ -1214,10 +1307,12 @@ export async function executeGeneration(custom = {}) {
             image_size: reqBody.image_size,
             imageSize: reqBody.imageSize,
             aspect_ratio: reqBody.aspect_ratio,
+            imageConfig: reqBody.imageConfig,
             quality: reqBody.quality,
             output_format: reqBody.output_format,
             background: reqBody.background,
             generationConfig: reqBody.generationConfig,
+            config: reqBody.config,
             contentPartTypes: contentParts.map((part) => part.type),
           });
 
@@ -1246,7 +1341,7 @@ export async function executeGeneration(custom = {}) {
 
           const imageGenerationTool = { type: "image_generation" };
           if (openaiSize && openaiSize !== "") imageGenerationTool.size = openaiSize;
-          if (quality) imageGenerationTool.quality = quality;
+          if (openaiQuality) imageGenerationTool.quality = openaiQuality;
           if (outputFormat) imageGenerationTool.output_format = outputFormat;
           if (bgStyle) imageGenerationTool.background = bgStyle;
           if (moderation !== "auto") imageGenerationTool.moderation = moderation;
@@ -1256,10 +1351,17 @@ export async function executeGeneration(custom = {}) {
             input: [{ role: "user", content: contentParts }],
             tools: [imageGenerationTool],
           };
+          if (apiType === "gemini") {
+            applyCompatImageConfig(reqBody, compatImageConfig);
+          }
 
           generationDebug("openai:responses-request-body-summary", {
             model: finalModel,
             imageGenerationTool,
+            image_size: reqBody.image_size,
+            imageSize: reqBody.imageSize,
+            aspect_ratio: reqBody.aspect_ratio,
+            imageConfig: reqBody.imageConfig,
             inputContentPartTypes: contentParts.map((part) => part.type),
           });
 
@@ -1273,18 +1375,22 @@ export async function executeGeneration(custom = {}) {
             const fd = new FormData();
             fd.append("model", finalModel);
             fd.append("prompt", finalPrompt);
-            fd.append("response_format", "b64_json");
+            if (!useOfficialGptImageParams) fd.append("response_format", "b64_json");
             if (openaiSize && openaiSize !== "") fd.append("size", openaiSize);
+            if (apiType === "gemini") {
+              applyCompatImageConfig(fd, compatImageConfig, { formData: true });
+            }
+            if (openaiQuality) fd.append("quality", openaiQuality);
             if (outputFormat) fd.append("output_format", outputFormat);
             if (bgStyle) fd.append("background", bgStyle);
             if (moderation !== "auto") fd.append("moderation", moderation);
 
             imgs.forEach((img, i) => {
-              fd.append("image", _b64ToBlob(img), `image${i}.png`);
+              fd.append("image", imageDataToBlob(img), `image${i}.png`);
               if (requestMasks && requestMasks[i]) {
                 fd.append(
                   "mask",
-                  _b64ToBlob(requestMasks[i]),
+                  imageDataToBlob(requestMasks[i]),
                   `mask${i}.png`,
                 );
               }
@@ -1294,9 +1400,13 @@ export async function executeGeneration(custom = {}) {
             const reqBody = {
               model: finalModel,
               prompt: finalPrompt,
-              response_format: "b64_json",
             };
+            if (!useOfficialGptImageParams) reqBody.response_format = "b64_json";
             if (openaiSize && openaiSize !== "") reqBody.size = openaiSize;
+            if (apiType === "gemini") {
+              applyCompatImageConfig(reqBody, compatImageConfig);
+            }
+            if (openaiQuality) reqBody.quality = openaiQuality;
             if (outputFormat) reqBody.output_format = outputFormat;
             if (bgStyle) reqBody.background = bgStyle;
             if (moderation !== "auto") reqBody.moderation = moderation;
@@ -1570,18 +1680,26 @@ export async function executeGeneration(custom = {}) {
         return { text: finalPrompt, image: src };
       } else {
         // ===== Gemini 请求 =====
-        const parts = imgs.map((i) => ({
-          inline_data: {
-            mime_type: "image/jpeg",
-            data: i.includes(",") ? i.split(",")[1] : i,
-          },
-        }));
+        const parts = imgs.map((i) => {
+          const str = String(i || "");
+          const mimeMatch = str.match(/^data:([^;]+);base64,/i);
+          return {
+            inline_data: {
+              // 与 @google/genai 脚本一致：保留用户上传图片的真实 MIME，避免 PNG 被误报为 JPEG。
+              mime_type: mimeMatch?.[1] || "image/png",
+              data: str.includes(",") ? str.split(",")[1] : str,
+            },
+          };
+        });
         parts.push({ text: finalPrompt });
 
         const imageConfig = {
-          aspectRatio: custom.aspectRatio || bananaAspectRatio,
-          imageSize: custom.imageSize || bananaImageSize,
+          // 脚本能出高清的关键是这里传枚举值 2K/4K，而不是 OpenAI 风格的 2048x2048。
+          imageSize: bananaCompatImageSize,
         };
+        if (custom.aspectRatio || bananaAspectRatio) {
+          imageConfig.aspectRatio = custom.aspectRatio || bananaAspectRatio;
+        }
 
         const responseModalitiesMap = {
           IMAGE: ["IMAGE"],

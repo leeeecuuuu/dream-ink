@@ -47,10 +47,10 @@ export const ApiConfigModal = `
                         <div class="space-y-1.5 mt-2">
                             <label class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">Banana 请求格式</label>
                             <select id="bananaApiFormat" class="w-full bg-surface-container-lowest border border-outline-variant rounded-md text-xs text-on-surface py-2 px-3 focus:ring-1 focus:border-primary cursor-pointer">
-                                <option value="openai" selected>OpenAI 兼容（推荐，第三方中转 /v1/images 或 /v1/chat/completions）</option>
-                                <option value="gemini">Gemini 原生（仅直连原生接口时使用，models/:generateContent）</option>
+                                <option value="gemini" selected>Gemini 原生（推荐 gemini-3-pro-image-preview / models/:generateContent）</option>
+                                <option value="openai">OpenAI 兼容（第三方中转 /v1/images 或 /v1/chat/completions）</option>
                             </select>
-                            <p class="text-[10px] text-outline leading-relaxed">Banana 默认按第三方 OpenAI 兼容中转处理；只有在你直连 Gemini 原生接口时才需要切换为 Gemini 原生。</p>
+                            <p class="text-[10px] text-outline leading-relaxed">使用 chatapi.hakoyu.com 或 gemini-3-pro-image-preview|神秘渠道时，建议选择 Gemini 原生，才能按 imageConfig.imageSize=2K/4K 请求高清图。</p>
                         </div>
                     </div>
 
@@ -117,7 +117,7 @@ export const ApiConfigModal = `
                         <div id="modelGeminiStatus" class="text-[10px] text-on-surface-variant">填入 Banana 模型名称，或单独获取 Gemini 模型列表</div>
                         <!-- 获取列表后显示下拉，默认显示文本框 -->
                         <select id="modelGeminiSelect" class="hidden w-full bg-surface-container-lowest border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs"></select>
-                        <input type="text" id="modelGemini" placeholder="gemini-2.0-flash-preview-image-generation"
+                        <input type="text" id="modelGemini" placeholder="gemini-3-pro-image-preview|神秘渠道"
                             class="w-full bg-surface-container border border-outline-variant rounded-md text-sm px-3 py-2 text-on-surface focus:ring-1 focus:border-primary font-mono text-xs">
                         <input type="text" id="customModelsGemini" placeholder="Banana 自定义下拉模型库 (多个用英文逗号分隔，留空则获取全量模型)" title="在此填入 Banana 常用的固定模型（如 gemini-2.0-flash, gemini-1.5-pro），点击本区【获取 Banana 模型】后，下拉框将只显示你填写的这些模型。" class="w-full bg-surface-container-highest border border-outline-variant rounded-md px-3 py-1.5 text-[10px] text-on-surface placeholder:text-outline/60 focus:border-primary mt-1">
                     </div>

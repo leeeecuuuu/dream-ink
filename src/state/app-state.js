@@ -11,7 +11,7 @@ import { safeParse, ls } from '../utils/helpers.js';
 export const PROVIDER_DEFAULTS = {
   gemini: {
     label: 'Banana · Gemini',
-    model: 'gemini-2.0-flash-preview-image-generation',
+    model: 'gemini-3-pro-image-preview|神秘渠道',
     apiType: 'gemini',
     badgeClass: 'gemini',
     badgeText: '✦ Banana · Gemini',

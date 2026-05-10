@@ -185,11 +185,11 @@ export function initFormPersistence() {
         modelOpenai: $("modelOpenai")?.value || PROVIDER_DEFAULTS.openai.model,
         customModelsGemini: $("customModelsGemini")?.value || "",
         customModelsOpenai: $("customModelsOpenai")?.value || "",
-        bananaApiFormat: $("bananaApiFormat")?.value || "openai",
+        bananaApiFormat: $("bananaApiFormat")?.value || "gemini",
         bananaAspectRatio: $("bananaAspectRatio")?.value || "1:1",
         bananaImageSize: $("bananaImageSize")?.value || "1K",
         bananaResponseModalities:
-          $("bananaResponseModalities")?.value || "IMAGE",
+          $("bananaResponseModalities")?.value || "TEXT_IMAGE",
         bananaEnableGoogleSearch:
           $("bananaEnableGoogleSearch")?.checked || false,
       };

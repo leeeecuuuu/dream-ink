@@ -22,7 +22,7 @@ export const InfoModal = `
                         <p class="text-on-surface-variant">应用默认无需后端服务，API Key、提示词库、历史记录等数据会优先保存在你的本地浏览器中；如启用同步或本地文件夹存储，则按你的配置进行保存。</p>
                         <div class="pt-3 mt-3 border-t border-outline-variant space-y-2">
                             <p class="text-on-surface-variant"><strong class="text-on-surface">作者：</strong>Claude Opus 4.6 thinking | Gemini 3.1 pro</p>
-                            <p class="text-on-surface-variant text-xs leading-relaxed"><strong class="text-on-surface">鸣谢名单：</strong>青犬莉的生图脚本 | Angela 的生图前端 | kakaa 的 kavelai | Jasmine 的热心 | 肚子疼的升级优化</p>
+                            <p class="text-on-surface-variant text-xs leading-relaxed"><strong class="text-on-surface">鸣谢名单：</strong>青空莉的生图脚本 | <a href="https://discord.com/channels/1134557553011998840/1441659485960536185" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">Angela 的生图前端</a> | kakaa 的 <a href="https://nai.sinkink.dpdns.org/" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">kavelai</a> | Jasmine 的热心 | 肚子疼的升级优化</p>
                         </div>
                     </div>
 

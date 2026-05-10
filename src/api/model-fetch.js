@@ -99,7 +99,7 @@ function fillProviderSelect(provider, models) {
   const fallback =
     provider === "openai"
       ? "gpt-image-1"
-      : "gemini-2.0-flash-preview-image-generation";
+      : "gemini-3-pro-image-preview|神秘渠道";
   const options = Array.from(sel.options);
   if (curVal && options.some((o) => o.value === curVal)) {
     sel.value = curVal;
@@ -141,7 +141,7 @@ async function requestProviderModels(provider) {
   }
 
   if (provider === "gemini") {
-    const bananaApiFormat = $("bananaApiFormat")?.value || "openai";
+    const bananaApiFormat = $("bananaApiFormat")?.value || "gemini";
     const useOpenAICompat = bananaApiFormat !== "gemini";
     if (useOpenAICompat) {
       const cleanBase = apiCfg.baseUrl.replace(/\/+$/, "");
