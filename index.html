@@ -237,28 +237,6 @@
                 </div>
                 <div id="statusBox" class="text-center mt-4 text-xs font-medium text-primary h-4"></div>
 
-                <section id="generationDebugPanel" class="mt-4 rounded-2xl border border-outline-variant bg-surface-container shadow-sm overflow-hidden">
-                    <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
-                        <div class="min-w-0">
-                            <div class="text-[11px] font-bold tracking-widest text-primary uppercase">Generation Debug</div>
-                            <div id="generationDebugSummary" class="text-xs text-on-surface-variant mt-1">等待生成请求...</div>
-                        </div>
-                        <div id="generationDebugActions" class="flex items-center gap-2 shrink-0">
-                            <button id="generationDebugCopyBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1">
-                                <span class="material-symbols-outlined text-[15px]">content_copy</span>
-                                复制全部
-                            </button>
-                            <button id="generationDebugClearBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors">
-                                清空日志
-                            </button>
-                        </div>
-                    </div>
-                    <div id="generationDebugList" class="max-h-[420px] overflow-auto custom-scrollbar p-3 space-y-2">
-                        <div id="generationDebugEmpty" class="rounded-xl border border-dashed border-outline-variant px-4 py-6 text-center text-xs text-on-surface-variant">
-                            这里会显示本次生成链路的详细调试日志
-                        </div>
-                    </div>
-                </section>
             </div>
         </aside>
 
@@ -342,7 +320,7 @@
                 </div>
                 <div id="historyFilterSummary" class="text-[10px] text-on-surface-variant/70 px-1 min-h-4"></div>
             </div>
-            <div class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar" id="historyList">
+            <div class="flex-1 min-h-0 overflow-y-auto space-y-3 pr-2 custom-scrollbar" id="historyList">
                 <!-- 骨架屏 -->
                 <div class="animate-pulse flex gap-3 p-3 bg-surface-container rounded-xl">
                     <div class="w-16 h-16 bg-outline-variant/30 rounded-lg"></div>
@@ -369,6 +347,31 @@
                     </div>
                 </div>
             </div>
+            <section id="generationDebugPanel" class="generation-debug-panel mt-5 flex-shrink-0 rounded-2xl border border-outline-variant bg-surface-container shadow-sm overflow-hidden">
+                <div class="generation-debug-header flex items-start justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 text-[11px] font-bold tracking-widest text-primary uppercase">
+                            <span class="material-symbols-outlined text-[15px]">bug_report</span>
+                            详细调试日志
+                        </div>
+                        <div id="generationDebugSummary" class="text-xs text-on-surface-variant mt-1">等待生成请求...</div>
+                    </div>
+                    <div id="generationDebugActions" class="flex items-center gap-1.5 shrink-0">
+                        <button id="generationDebugCopyBtn" type="button" class="generation-debug-action px-2.5 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[15px]">content_copy</span>
+                            复制
+                        </button>
+                        <button id="generationDebugClearBtn" type="button" class="generation-debug-action px-2.5 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors">
+                            清空
+                        </button>
+                    </div>
+                </div>
+                <div id="generationDebugList" class="max-h-[260px] overflow-auto custom-scrollbar p-3 space-y-2">
+                    <div id="generationDebugEmpty" class="rounded-xl border border-dashed border-outline-variant px-4 py-6 text-center text-xs text-on-surface-variant">
+                        这里会显示本次生成链路的详细调试日志
+                    </div>
+                </div>
+            </section>
         </aside>
 
     </main>

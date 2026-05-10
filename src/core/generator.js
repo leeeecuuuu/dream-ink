@@ -179,8 +179,8 @@ function ensureGenerationDebugPanel() {
     return panel;
   }
 
-  const statusBox = $("statusBox");
-  const mountTarget = statusBox?.parentElement;
+  const historySidebar = document.getElementById("historySidebar");
+  const mountTarget = historySidebar || $("statusBox")?.parentElement;
   if (!mountTarget) return null;
 
   panel = el(
@@ -188,21 +188,21 @@ function ensureGenerationDebugPanel() {
     {
       id: "generationDebugPanel",
       className:
-        "hidden mt-4 rounded-2xl border border-outline-variant bg-surface-container shadow-sm overflow-hidden",
+        "generation-debug-panel hidden mt-5 flex-shrink-0 rounded-2xl border border-outline-variant bg-surface-container shadow-sm overflow-hidden",
     },
     el(
       "div",
       {
         className:
-          "flex items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low",
+          "generation-debug-header flex items-start justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low",
       },
       el(
         "div",
         { className: "min-w-0" },
         el("div", {
           className:
-            "text-[11px] font-bold tracking-widest text-primary uppercase",
-          textContent: "Generation Debug",
+            "text-[11px] font-bold tracking-widest text-primary uppercase flex items-center gap-2",
+          innerHTML: '<span class="material-symbols-outlined text-[15px]">bug_report</span>详细调试日志',
         }),
         el("div", {
           id: "generationDebugSummary",
@@ -214,7 +214,7 @@ function ensureGenerationDebugPanel() {
         "div",
         {
           id: "generationDebugActions",
-          className: "flex items-center gap-2 shrink-0",
+          className: "flex items-center gap-1.5 shrink-0",
         },
         el(
           "button",
@@ -222,10 +222,10 @@ function ensureGenerationDebugPanel() {
             id: "generationDebugCopyBtn",
             type: "button",
             className:
-              "px-3 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1",
+              "generation-debug-action px-2.5 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1",
           },
           icon("content_copy", "text-[15px]"),
-          "复制全部",
+          "复制",
         ),
         el(
           "button",
@@ -233,9 +233,9 @@ function ensureGenerationDebugPanel() {
             id: "generationDebugClearBtn",
             type: "button",
             className:
-              "px-3 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors",
+              "generation-debug-action px-2.5 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors",
           },
-          "清空日志",
+          "清空",
         ),
       ),
     ),
@@ -243,7 +243,7 @@ function ensureGenerationDebugPanel() {
       "div",
       {
         id: "generationDebugList",
-        className: "max-h-[420px] overflow-auto custom-scrollbar p-3 space-y-2",
+        className: "max-h-[260px] overflow-auto custom-scrollbar p-3 space-y-2",
       },
       el(
         "div",
