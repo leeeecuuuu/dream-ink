@@ -23,3 +23,4 @@ desktop.ini
 
 # 旧版备份文件（已重构，不再需要）
 style_backup.css
+pnpm-lock.yaml

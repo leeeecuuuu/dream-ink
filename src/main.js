@@ -48,8 +48,6 @@ window.addEventListener('unhandledrejection', (e) => {
 
 // 覆写 window.alert
 overrideAlert();
-
-// Lightbox 立即初始化（不依赖 DOMContentLoaded）
 initLightbox();
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -209,28 +207,56 @@ document.addEventListener('DOMContentLoaded', () => {
     _hdApplyBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">file_download</span> 导入参数与垫图';
   };
 
-  // ========== 垫图上传与拖拽 ==========
+  const insertTextAtCursor = (textarea, text) => {
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    textarea.value = `${textarea.value.slice(0, start)}${text}${textarea.value.slice(end)}`;
+    const nextPos = start + text.length;
+    textarea.selectionStart = nextPos;
+    textarea.selectionEnd = nextPos;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  const appendReferenceFiles = async (files, sourceLabel = '参考图') => {
+    const imageFiles = Array.from(files).filter(file => file?.type?.startsWith('image/'));
+    if (!imageFiles.length) return;
+
+    const remaining = 10 - state.selectedFiles.length;
+    if (remaining <= 0) {
+      showToast('参考图最多 10 张', 'error');
+      return;
+    }
+
+    const accepted = imageFiles.slice(0, remaining);
+    if (accepted.length < imageFiles.length) {
+      showToast(`最多 10 张，已只添加前 ${accepted.length} 张`, 'error');
+    }
+
+    try {
+      showToast(`正在压缩${sourceLabel}，尽量保持清晰度...`);
+      const compressed = await Promise.all(accepted.map(file => compressImageFile(file)));
+      const savedBytes = compressed.reduce((sum, file, i) => sum + Math.max(0, (accepted[i]?.size || 0) - (file?.size || 0)), 0);
+      state.selectedFiles = state.selectedFiles.concat(compressed);
+      bus.emit('selectedFiles:change');
+      if (savedBytes > 0) {
+        showToast(`${sourceLabel}已自动压缩，约减少 ${(savedBytes / 1024 / 1024).toFixed(1)}MB`);
+      } else {
+        showToast(`已添加 ${accepted.length} 张${sourceLabel}`);
+      }
+    } catch (err) {
+      console.warn(`${sourceLabel}压缩失败，使用原图`, err);
+      state.selectedFiles = state.selectedFiles.concat(accepted);
+      bus.emit('selectedFiles:change');
+      showToast(`${sourceLabel}压缩失败，已保留原图`, 'error');
+    }
+  };
+
+  // ========== 垫图上传、拖拽与粘贴 ==========
   const imgInput = $('imageInput');
   if (imgInput) {
     imgInput.onchange = async e => {
-      const nf = Array.from(e.target.files);
-      if (state.selectedFiles.length + nf.length > 10) { e.target.value = ''; return alert('最多 10 张！'); }
-      if (!nf.length) return;
-      try {
-        showToast('正在压缩参考图，尽量保持清晰度...');
-        const compressed = await Promise.all(nf.map(file => compressImageFile(file)));
-        const savedBytes = compressed.reduce((sum, file, i) => sum + Math.max(0, (nf[i]?.size || 0) - (file?.size || 0)), 0);
-        state.selectedFiles = state.selectedFiles.concat(compressed);
-        bus.emit('selectedFiles:change');
-        if (savedBytes > 0) showToast(`参考图已自动压缩，约减少 ${(savedBytes / 1024 / 1024).toFixed(1)}MB`);
-      } catch (err) {
-        console.warn('参考图压缩失败，使用原图', err);
-        state.selectedFiles = state.selectedFiles.concat(nf);
-        bus.emit('selectedFiles:change');
-        showToast('参考图压缩失败，已保留原图', 'error');
-      } finally {
-        e.target.value = '';
-      }
+      await appendReferenceFiles(e.target.files, '参考图');
+      e.target.value = '';
     };
     const panel = imgInput.parentElement;
     if (panel) {
@@ -239,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ['dragleave', 'drop'].forEach(e => panel.addEventListener(e, () => panel.classList.remove('bg-surface-container-highest', 'border-primary')));
       panel.ondrop = e => {
         const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-        if (files.length) { const dt = new DataTransfer(); [...(imgInput.files || []), ...files].forEach(f => dt.items.add(f)); imgInput.files = dt.files; imgInput.dispatchEvent(new Event('change')); }
+        if (files.length) appendReferenceFiles(files, '参考图');
       };
     }
   }
@@ -247,6 +273,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // ========== 快捷键绑定 ==========
   const promptInput = $('promptInput');
   if (promptInput) {
+    promptInput.addEventListener('paste', (e) => {
+      const clipboard = e.clipboardData;
+      if (!clipboard) return;
+
+      const pastedImages = Array.from(new Map([
+        ...Array.from(clipboard.items || [])
+          .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+          .map(item => item.getAsFile()),
+        ...Array.from(clipboard.files || []).filter(file => file.type.startsWith('image/')),
+      ].filter(Boolean).map(file => [`${file.name}:${file.size}:${file.type}:${file.lastModified}`, file])).values());
+
+      if (!pastedImages.length) return;
+
+      e.preventDefault();
+      const text = clipboard.getData('text/plain');
+      if (text) insertTextAtCursor(promptInput, text);
+      appendReferenceFiles(pastedImages, '粘贴图片');
+    });
+
     promptInput.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
