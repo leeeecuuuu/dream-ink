@@ -1781,6 +1781,7 @@ export async function executeGeneration(custom = {}) {
         });
 
         if (!src) {
+          console.log("[OpenAI] 未提取到图像，完整原始响应:", JSON.stringify(data, null, 2));
           const hint =
             Array.isArray(data?.choices) && !Array.isArray(data?.data)
               ? "当前接口返回 choices（Chat 格式）而不是 data（Images 格式），请尝试把 GPT API 格式切换为 chat，或更换支持 Images API 的渠道。"
@@ -1978,22 +1979,31 @@ export async function executeGeneration(custom = {}) {
           bodyKeys: Object.keys(data || {}),
           errorMessage: data?.error?.message || null,
         });
-        if (!res.ok)
+        if (!res.ok) {
+          console.log("[Gemini] 请求失败，完整响应:", JSON.stringify(data, null, 2));
           throw new Error(data.error?.message || `API Error: ${res.status}`);
+        }
 
         let text = "",
           image = "";
         for (const p of data.candidates?.[0]?.content?.parts || []) {
           if (p.text) text += p.text + "\n";
           const inl = p.inlineData || p.inline_data;
-          if (inl?.data)
+          if (inl?.data) {
             image = `data:${inl.mimeType || inl.mime_type || "image/png"};base64,${inl.data}`;
+          }
+          // 某些渠道将图片嵌在 text 的 markdown 里：![image](data:image/...;base64,...)
+          if (!image && p.text) {
+            const mdMatch = p.text.match(/!\[[^\]]*\]\((data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)\)/i);
+            if (mdMatch) image = mdMatch[1];
+          }
         }
         if (!image) {
           const reason =
             data.candidates?.[0]?.finishReason ||
             data.promptFeedback?.blockReason ||
             "未知原因";
+          console.log("[Gemini] 未返回图像，完整原始响应:", JSON.stringify(data, null, 2));
           generationDebug("gemini:no-image-returned", {
             reason,
             candidateCount: data.candidates?.length || 0,
