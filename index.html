@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DreamInk</title>
+    <meta name="description" content="AI 图像生成工作台">
+    <meta name="theme-color" content="#0A0A0A">
+    <meta property="og:title" content="DreamInk">
+    <meta property="og:description" content="AI 图像生成工作台">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+</head>
+
+<body class="text-on-surface min-h-dvh flex flex-col overflow-hidden antialiased tracking-tight">
+    
+    <!-- Skip link -->
+    <a href="#promptInput" class="skip-link">跳到内容</a>
+
+    <!-- TopAppBar -->
+    <header class="bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center w-full px-4 h-16 fixed top-0" style="z-index: var(--z-sticky);">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl font-black tracking-tighter text-primary">DreamInk</h1>
+            <button id="openLibraryBtn" type="button" class="flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high" title="咒语书">
+                <span class="material-symbols-outlined text-[20px]">menu_book</span>
+            </button>
+        </div>
+        <div class="flex items-center gap-1">
+            <span id="engineBadge" class="gemini">✦ Banana · Gemini</span>
+            <button id="infoBtn" type="button" title="指南" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
+                <span class="material-symbols-outlined text-[20px]">explore</span>
+            </button>
+            <button id="syncConfigBtn" type="button" title="数据同步与存储" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
+                <span class="material-symbols-outlined text-[20px]">cloud_sync</span>
+            </button>
+            <button id="apiConfigBtn" type="button" title="API 配置" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
+                <span class="material-symbols-outlined text-[20px]">settings</span>
+            </button>
+            <button id="themeToggle" type="button" title="切换主题" class="flex items-center text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-lg hover:bg-surface-container-high">
+                <span class="material-symbols-outlined text-[20px]">dark_mode</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex flex-1 pt-16 overflow-hidden">
+        
+        <!-- Left Sidebar (Generator Controls) -->
+        <aside class="left-panel fixed left-0 top-16 h-[calc(100dvh-64px)] w-[380px] bg-surface-container-low border-r border-outline-variant flex flex-col p-6 font-sans text-sm font-medium overflow-y-auto custom-scrollbar" id="panel-left" role="tabpanel" aria-labelledby="tabParams" style="z-index: var(--z-sidebar);">
+            <div class="space-y-8 flex-1 pt-2">
+
+                <!-- 引擎快速切换 -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">生成引擎</label>
+                    <div id="engineSwitcher" class="flex gap-1.5 p-1 bg-surface-container rounded-xl border border-outline-variant">
+                        <button id="engineBanana" data-engine="gemini" class="engine-btn active flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all">
+                            <span class="material-symbols-outlined text-[14px]">auto_awesome</span>
+                            Banana
+                        </button>
+                        <button id="engineImage2" data-engine="openai" class="engine-btn flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all">
+                            <span class="material-symbols-outlined text-[14px]">image</span>
+                            GPT Image-2
+                        </button>
+                    </div>
+                    <div id="engineModelHint" class="text-[10px] text-on-surface-variant font-medium px-1 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[12px]">model_training</span>
+                        <span id="engineModelHintText">加载中...</span>
+                    </div>
+                </div>
+
+                <!-- Prompt Input -->
+                <div class="space-y-2 relative">
+                    <div class="flex items-center justify-between">
+                        <label for="promptInput" class="text-[11px] font-bold tracking-widest text-on-surface-variant">画面描述</label>
+                        <label id="rewriteGuardLabel" class="hidden flex items-center gap-1.5 cursor-pointer group" title="开启后在请求前加入强制指令，防止 Responses API 改写你的提示词">
+                            <span class="text-[10px] text-on-surface-variant group-hover:text-on-surface transition-colors">防改写</span>
+                            <div class="relative">
+                                <input type="checkbox" id="rewriteGuardToggle" class="sr-only peer">
+                                <div class="w-8 h-4 bg-surface-container-high rounded-full peer peer-checked:bg-primary transition-colors border border-outline-variant peer-checked:border-primary"></div>
+                                <div class="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+                            </div>
+                        </label>
+                    </div>
+                    <textarea id="promptInput" class="w-full h-40 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary focus:border-primary resize-none shadow-sm transition-shadow text-[13px]" placeholder="请输入你想要生成的画面描述...也可以直接粘贴图片作为参考图"></textarea>
+                </div>
+                
+                <!-- Banana 参数面板（Gemini） -->
+                <div id="bananaParamsPanel" class="space-y-3 mb-6">
+                    <!-- Gemini 子模型选择器 -->
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">模型选择</label>
+                        <div id="geminiModelSelector" class="gemini-model-selector">
+                            <button data-gemini-model="nano-banana-2" class="gemini-model-card active">
+                                <span class="material-symbols-outlined gemini-model-icon">bolt</span>
+                                <div class="gemini-model-info">
+                                    <span class="gemini-model-name">Nano Banana 2</span>
+                                    <span class="gemini-model-sub">Gemini 3.1 Flash</span>
+                                </div>
+                                <span class="gemini-model-badge">推荐</span>
+                            </button>
+                            <button data-gemini-model="nano-banana-pro" class="gemini-model-card">
+                                <span class="material-symbols-outlined gemini-model-icon">diamond</span>
+                                <div class="gemini-model-info">
+                                    <span class="gemini-model-name">Nano Banana Pro</span>
+                                    <span class="gemini-model-sub">Gemini 3 Pro</span>
+                                </div>
+                                <span class="gemini-model-badge">专业</span>
+                            </button>
+                            <button data-gemini-model="nano-banana" class="gemini-model-card">
+                                <span class="material-symbols-outlined gemini-model-icon">flash_on</span>
+                                <div class="gemini-model-info">
+                                    <span class="gemini-model-name">Nano Banana</span>
+                                    <span class="gemini-model-sub">Gemini 2.5 Flash</span>
+                                </div>
+                                <span class="gemini-model-badge">极速</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 画幅尺寸选择 -->
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画幅尺寸</label>
+                        <div id="geminiSizeTabs" class="gemini-size-tabs">
+                            <!-- JS 动态生成分辨率标签 -->
+                        </div>
+                        <div id="geminiSizeHint" class="text-[10px] text-on-surface-variant min-h-[16px]"></div>
+                        <div id="geminiSizeGrid" class="gemini-size-grid">
+                            <!-- JS 动态生成画幅比选项 -->
+                        </div>
+                        <!-- 自定义尺寸 -->
+                        <div id="geminiCustomSize" class="gemini-custom-size hidden">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-[10px] text-on-surface-variant font-bold tracking-wider">自定义宽高</span>
+                                <span id="geminiCustomConstraint" class="text-[10px] text-on-surface-variant"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="custom-dimension-field">
+                                    <span>W</span>
+                                    <input type="number" id="geminiCustomWidth" min="256" max="3840" step="64" placeholder="宽" class="tabular-nums">
+                                </div>
+                                <span class="custom-dimension-separator text-sm">×</span>
+                                <div class="custom-dimension-field">
+                                    <span>H</span>
+                                    <input type="number" id="geminiCustomHeight" min="256" max="3840" step="64" placeholder="高" class="tabular-nums">
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-on-surface-variant mt-1.5">宽高将自动规整到 64px 的倍数</p>
+                        </div>
+                    </div>
+
+                    <!-- 隐藏的兼容字段（generator.js 读取） -->
+                    <input type="hidden" id="bananaAspectRatio" value="1:1">
+                    <input type="hidden" id="bananaImageSize" value="1K">
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">响应模态</label>
+                            <select id="bananaResponseModalities" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="IMAGE">仅图像 (IMAGE)</option>
+                                <option value="TEXT_IMAGE" selected>文本+图像 (TEXT,IMAGE)</option>
+                                <option value="TEXT">仅文本 (TEXT)</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">联网搜索</label>
+                            <label class="w-full h-[38px] bg-surface-container-lowest border border-outline-variant rounded-lg px-3 flex items-center justify-between cursor-pointer">
+                                <span class="text-xs text-on-surface-variant">启用 Google Search</span>
+                                <input type="checkbox" id="bananaEnableGoogleSearch" class="accent-primary">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GPT 参数面板（OpenAI） -->
+                <div id="gptParamsPanel" class="space-y-3 mb-6 hidden">
+                    <!-- GPT 画幅尺寸选择 -->
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">画幅尺寸<sup class="text-[9px] text-outline ml-1">官方预设 · 下方可选自定义</sup></label>
+                        <div id="gptSizeGrid" class="gpt-size-grid">
+                            <!-- JS 动态生成预设尺寸方块 -->
+                        </div>
+                        <div id="gptSizeHint" class="text-[10px] text-on-surface-variant min-h-[16px]"></div>
+
+                        <!-- 自定义尺寸 -->
+                        <div id="gptCustomSize" class="gpt-custom-size hidden">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[10px] text-on-surface-variant font-bold tracking-wider">自定义宽高</span>
+                                <button type="button" id="gptBackToPresetBtn" class="text-[10px] font-bold text-primary hover:underline">← 返回预设尺寸</button>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="custom-dimension-field">
+                                    <span>W</span>
+                                    <input type="number" id="customWidth" min="256" max="3824" step="16" placeholder="宽" class="tabular-nums">
+                                </div>
+                                <span class="custom-dimension-separator text-sm">×</span>
+                                <div class="custom-dimension-field">
+                                    <span>H</span>
+                                    <input type="number" id="customHeight" min="256" max="3824" step="16" placeholder="高" class="tabular-nums">
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-on-surface-variant mt-1.5">约束：长边 &lt;3840，16px 对齐，比例 ≤ 3:1，总像素 655K−8.29M · 超 2560×1440 属实验性</p>
+                        </div>
+
+                        <input type="hidden" id="ratioSelect" value="1024x1024">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">图像质量</label>
+                            <select id="qualitySelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="standard" selected>标准画质</option>
+                                <option value="high">高清画质</option>
+                                <option value="ultra">极致画质</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">内容审核</label>
+                            <select id="moderationSelect" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="auto" selected>自动 (Auto)</option>
+                                <option value="low">低度 (Low)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">输出格式</label>
+                            <select id="outputFormat" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="png" selected>PNG（无损）</option>
+                                <option value="jpeg">JPEG（压缩）</option>
+                                <option value="webp">WebP（现代）</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">背景样式</label>
+                            <select id="bgStyle" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg text-xs text-on-surface py-2.5 px-3 focus:ring-1 focus:border-primary cursor-pointer">
+                                <option value="" selected>默认</option>
+                                <option value="transparent">透明背景</option>
+                                <option value="opaque">不透明</option>
+                                <option value="auto">自动背景</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 生成数量（数字输入） -->
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <label for="batchSelect" class="text-[11px] font-bold tracking-widest text-on-surface-variant">并发数量</label>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="number" id="batchSelect" min="1" max="20" value="1" step="1"
+                            class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface text-center font-mono tabular-nums font-bold focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
+                            placeholder="1-20">
+                        <span class="text-[10px] text-on-surface-variant whitespace-nowrap font-medium">张 / 次</span>
+                    </div>
+                    <p class="text-[10px] text-outline leading-relaxed">填入 1~20 的整数。数字越大并发越多，请注意 API 频率限制。</p>
+                </div>
+                
+                <!-- Image Reference -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold tracking-widest text-on-surface-variant">参考垫图</label>
+                    <div class="relative border border-dashed border-outline-variant bg-surface-container-lowest rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-surface-container transition-colors group cursor-pointer overflow-hidden min-h-[100px]">
+                        <input type="file" id="imageInput" accept="image/*" multiple title="最多 10 张图片" class="absolute inset-0 opacity-0 cursor-pointer z-10">
+                        <span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-2xl">add_photo_alternate</span>
+                        <span class="text-[10px] text-on-surface-variant tracking-widest font-bold">点击 / 拖拽上传 (最多10张)</span>
+                    </div>
+                    <div id="imagePreviewList" class="w-full flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+            
+            <!-- Generate CTA -->
+            <div class="mt-8">
+                <div id="paramPreview" class="text-[10px] text-center text-outline mb-3 min-h-4 font-medium tracking-wide truncate px-1"></div>
+                <button id="runBtn" class="w-full bg-primary-container text-on-primary-container font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary-container/20 text-[15px]">
+                    <span class="material-symbols-outlined">auto_awesome</span>
+                    开始创造
+                </button>
+                <!-- 批量提交 -->
+                <div class="flex items-center gap-2 mt-3">
+                    <input type="number" id="multiTaskCount" min="1" max="50" value="1" step="1" placeholder="次数"
+                        class="w-20 bg-surface-container-highest border border-outline-variant rounded-lg px-2 py-1.5 text-xs text-on-surface text-center font-mono tabular-nums font-bold focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors">
+                    <button id="multiTaskBtn" class="flex-1 bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline-variant font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors text-xs">
+                        <span class="material-symbols-outlined text-[16px]">playlist_add</span>
+                        批量提交任务
+                    </button>
+                    <button id="clearQueueBtn" class="hidden bg-error/10 hover:bg-error/20 text-error border border-error/20 px-2.5 py-2 rounded-lg text-xs font-bold transition-colors" title="清空队列">
+                        <span class="material-symbols-outlined text-[16px]">playlist_remove</span>
+                    </button>
+                </div>
+                <div id="statusBox" class="text-center mt-4 text-xs font-medium text-primary h-4"></div>
+
+            </div>
+        </aside>
+
+        <!-- Center Workspace -->
+        <section class="center-panel flex-1 ml-[380px] mr-80 bg-surface-container-lowest h-[calc(100dvh-64px)] overflow-y-auto custom-scrollbar p-8 relative" id="panel-center" role="tabpanel" aria-labelledby="tabGallery">
+            
+            <div class="max-w-[1400px] mx-auto flex flex-col min-h-full">
+                <div id="emptyState" class="flex flex-col items-center justify-center text-center space-y-6 h-[70vh] relative overflow-hidden">
+                    <div class="absolute inset-0 opacity-5 pointer-events-none" style="background-image: radial-gradient(var(--text-primary) 1px, transparent 1px); background-size: 32px 32px; mask-image: radial-gradient(circle at center, black 40%, transparent 80%); -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 80%);"></div>
+                    <div class="w-24 h-24 rounded-full border border-outline-variant/30 flex items-center justify-center bg-surface-container shadow-sm relative z-10">
+                        <span class="material-symbols-outlined text-4xl text-on-surface-variant opacity-60">auto_fix_high</span>
+                    </div>
+                    <div class="relative z-10">
+                        <h3 class="font-headline font-bold text-lg text-on-surface mb-2 tracking-tight">画廊</h3>
+                        <p class="text-sm text-on-surface-variant leading-relaxed max-w-[280px] mx-auto">配置左侧参数并点击生成<br>精美画面将呈现在这里</p>
+                    </div>
+                </div>
+
+                <div id="resultArea" style="display: none;" class="flex flex-col pb-24">
+                    <div id="textResultSection" class="mb-10">
+                        <div class="text-[11px] font-bold tracking-widest text-on-surface-variant mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[14px]">short_text</span> 画面描述
+                        </div>
+                        <div id="textOutput" class="p-6 bg-surface-container border border-outline-variant rounded-xl text-sm text-on-surface leading-relaxed whitespace-pre-wrap break-words shadow-sm"></div>
+                    </div>
+                    
+                    <div class="gallery-section flex flex-col">
+                        <div class="flex justify-between items-center mb-6">
+                            <div class="text-[11px] font-bold tracking-widest text-on-surface-variant flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[14px]">gallery_thumbnail</span> 生成图像
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button id="clearGalleryBtn" class="text-[11px] font-bold text-error hover:text-white hover:bg-error bg-error/10 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">delete_sweep</span> 清空画廊
+                                </button>
+                            </div>
+                        </div>
+                        <div id="imageGallery" class="masonry gallery-scroll custom-scrollbar"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Sidebar (History Sidebar) -->
+        <aside id="historySidebar" class="right-panel fixed right-0 top-16 h-[calc(100dvh-64px)] w-80 bg-surface border-l border-outline-variant flex flex-col p-6 font-sans overflow-y-auto custom-scrollbar" role="tabpanel" aria-labelledby="tabHistory" style="z-index: var(--z-sidebar);">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <span class="text-[10px] tracking-widest text-on-surface-variant font-bold">历史库</span>
+                    <h2 class="text-sm font-bold text-on-surface mt-0.5">生成记录</h2>
+                </div>
+                <div class="flex gap-1.5">
+                    <button id="exportImagesBtn" class="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-colors" title="打包下载所有原图">
+                        <span class="material-symbols-outlined text-[18px]">archive</span>
+                    </button>
+                    <button id="exportHistoryBtn" class="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-colors" title="导出数据">
+                        <span class="material-symbols-outlined text-[18px]">upload</span>
+                    </button>
+                    <button id="importHistoryBtn" class="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-colors" title="导入数据">
+                        <span class="material-symbols-outlined text-[18px]">download</span>
+                    </button>
+                    <input type="file" id="importHistoryInput" accept=".json" class="hidden">
+                    <button id="clearHistoryBtn" class="p-1.5 text-error hover:bg-error/10 rounded-md transition-colors" title="清空历史">
+                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                </div>
+            </div>
+            <div class="mb-4 space-y-2">
+                <div class="relative">
+                    <span class="material-symbols-outlined text-[16px] text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">search</span>
+                    <input id="historySearchInput" type="search" placeholder="搜索提示词 / 模型 / 画幅..." class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-2.5 pl-9 pr-3 text-xs text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary focus:border-primary transition-colors">
+                </div>
+                <div class="grid grid-cols-[1fr_auto] gap-2">
+                    <select id="historyEngineFilter" class="min-w-0 bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-2 text-xs text-on-surface focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer">
+                        <option value="all">全部引擎</option>
+                        <option value="gemini">Banana</option>
+                        <option value="openai">GPT Image-2</option>
+                    </select>
+                    <button id="historyFavoriteFilter" type="button" class="px-3 py-2 rounded-lg border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors flex items-center gap-1.5 text-xs font-bold" title="只看收藏">
+                        <span class="material-symbols-outlined text-[16px]">star</span>
+                        收藏
+                    </button>
+                </div>
+                <div id="historyFilterSummary" class="text-[10px] text-on-surface-variant/70 px-1 min-h-4"></div>
+            </div>
+            <div class="flex-1 min-h-[200px] overflow-y-auto space-y-3 pr-2 custom-scrollbar" id="historyList">
+                <!-- 骨架屏 -->
+                <div class="animate-pulse flex gap-3 p-3 bg-surface-container rounded-xl">
+                    <div class="w-16 h-16 bg-outline-variant/30 rounded-lg"></div>
+                    <div class="flex-1 space-y-2 py-1">
+                        <div class="h-3 bg-outline-variant/30 rounded w-3/4"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-1/2"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-5/6"></div>
+                    </div>
+                </div>
+                <div class="animate-pulse flex gap-3 p-3 bg-surface-container rounded-xl">
+                    <div class="w-16 h-16 bg-outline-variant/30 rounded-lg"></div>
+                    <div class="flex-1 space-y-2 py-1">
+                        <div class="h-3 bg-outline-variant/30 rounded w-full"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-2/3"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-1/2"></div>
+                    </div>
+                </div>
+                <div class="animate-pulse flex gap-3 p-3 bg-surface-container rounded-xl">
+                    <div class="w-16 h-16 bg-outline-variant/30 rounded-lg"></div>
+                    <div class="flex-1 space-y-2 py-1">
+                        <div class="h-3 bg-outline-variant/30 rounded w-5/6"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-1/2"></div>
+                        <div class="h-3 bg-outline-variant/30 rounded w-3/4"></div>
+                    </div>
+                </div>
+            </div>
+            <section id="generationDebugPanel" class="generation-debug-panel mt-5 flex-shrink-0 rounded-2xl border border-outline-variant bg-surface-container shadow-sm overflow-hidden">
+                <div class="generation-debug-header flex items-start justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 text-[11px] font-bold tracking-widest text-primary uppercase">
+                            <span class="material-symbols-outlined text-[15px]">bug_report</span>
+                            详细调试日志
+                        </div>
+                        <div id="generationDebugSummary" class="text-xs text-on-surface-variant mt-1">等待生成请求...</div>
+                    </div>
+                    <div id="generationDebugActions" class="flex items-center gap-1.5 shrink-0">
+                        <button id="generationDebugCopyBtn" type="button" class="generation-debug-action px-2.5 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[15px]">content_copy</span>
+                            复制
+                        </button>
+                        <button id="generationDebugClearBtn" type="button" class="generation-debug-action px-2.5 py-1.5 rounded-lg text-xs font-bold border border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors">
+                            清空
+                        </button>
+                    </div>
+                </div>
+                <div id="generationDebugList" class="max-h-[260px] overflow-auto custom-scrollbar p-3 space-y-2">
+                    <div id="generationDebugEmpty" class="rounded-xl border border-dashed border-outline-variant px-4 py-6 text-center text-xs text-on-surface-variant">
+                        这里会显示本次生成链路的详细调试日志
+                    </div>
+                </div>
+            </section>
+        </aside>
+
+    </main>
+
+
+    <!-- Mask Editor Modal -->
+    <div id="maskEditorModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex-col" style="z-index: var(--z-modal);">
+        <div class="flex justify-between items-center px-4 py-3 bg-surface border-b border-outline-variant flex-shrink-0">
+            <h3 class="text-on-surface font-bold text-sm tracking-wide">蒙版涂抹编辑</h3>
+            <div class="flex gap-2">
+                <button id="maskSaveBtn" class="bg-primary text-on-primary px-4 py-1.5 rounded-lg text-xs font-bold hover:brightness-110 shadow">保存并应用</button>
+                <button id="maskCloseBtn" class="text-on-surface-variant hover:text-error transition-colors p-1"><span class="material-symbols-outlined">close</span></button>
+            </div>
+        </div>
+        <div class="bg-surface-container-low p-2 flex gap-4 justify-center items-center border-b border-outline-variant/30 text-xs flex-shrink-0">
+            <label class="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="maskMode" value="draw" checked class="accent-primary"> 画笔
+            </label>
+            <label class="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="maskMode" value="erase" class="accent-primary"> 橡皮擦
+            </label>
+            <div class="flex items-center gap-2 ml-4">
+                <span class="text-on-surface-variant font-medium">笔触大小:</span>
+                <input type="range" id="maskBrushSize" min="5" max="200" value="30" class="w-32 accent-primary">
+                <span id="maskBrushSizeVal" class="text-on-surface font-mono w-10 text-right">30px</span>
+            </div>
+            <button id="maskClearBtn" class="ml-4 text-error hover:bg-error/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
+                <span class="material-symbols-outlined text-[14px]">delete</span>清空
+            </button>
+        </div>
+        <div class="flex-1 overflow-auto relative flex justify-center items-center p-4 custom-scrollbar bg-black/20" id="maskCanvasContainer">
+            <div id="maskCanvasWrapper" class="relative shadow-2xl rounded-sm" style="cursor: crosshair; display: inline-block;">
+                <canvas id="maskImageCanvas" style="display: block; width: 100%; height: 100%;"></canvas>
+                <canvas id="maskDrawCanvas" style="display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.6;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="relative">
+        <img id="lightboxImg" src="" alt="Zoomed image">
+        <!-- 桌面端提示 -->
+        <div class="lightbox-hint-desktop absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 text-white/90 backdrop-blur-md px-5 py-2.5 rounded-full text-xs pointer-events-none flex items-center gap-2 tracking-wide shadow-lg border border-white/10 opacity-70 transition-opacity duration-300">
+            <span class="material-symbols-outlined text-[16px]">mouse</span>
+            滚轮缩放 / 拖拽漫游 / 单击关闭
+        </div>
+        <!-- 移动端提示 -->
+        <div class="lightbox-hint-mobile absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 text-white/90 backdrop-blur-md px-5 py-2.5 rounded-full text-xs pointer-events-none items-center gap-2 tracking-wide shadow-lg border border-white/10 opacity-70 transition-opacity duration-300">
+            <span class="material-symbols-outlined text-[16px]">pinch_zoom_in</span>
+            双指缩放 / 单指拖拽 / 单击关闭
+        </div>
+    </div>
+
+    <!-- Toast 通知容器 -->
+    <div id="toastContainer" class="fixed bottom-6 right-6 flex flex-col gap-2 z-[2100]" role="status" aria-live="polite" aria-atomic="false"></div>
+
+    <!-- 移动端底部 TabBar -->
+    <nav id="mobileTabBar" role="tablist" aria-label="面板切换">
+        <button class="tab-btn active" id="tabParams" type="button" data-panel="left" role="tab" aria-selected="true" aria-controls="panel-left">
+            <span class="material-symbols-outlined">tune</span>
+            参数
+        </button>
+        <button class="tab-btn" id="tabGallery" type="button" data-panel="center" role="tab" aria-selected="false" aria-controls="panel-center">
+            <span class="material-symbols-outlined">image</span>
+            画廊
+        </button>
+        <button class="tab-btn" id="tabHistory" type="button" data-panel="right" role="tab" aria-selected="false" aria-controls="historySidebar">
+            <span class="material-symbols-outlined">history</span>
+            历史
+        </button>
+    </nav>
+
+    <!-- Vite 模块入口 -->
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
