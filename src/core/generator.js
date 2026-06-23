@@ -546,15 +546,59 @@ const GENERATION_DIAGNOSTIC_RULES = [
     actions: ["openApiConfig", "retry", "copyDebug"],
   },
   {
+    code: "auth-failure",
+    title: "认证失败或 API Key 无效",
+    icon: "key_off",
+    match: ({ message }) =>
+      /401|403|unauthorized|forbidden|invalid.*key|invalid.*api|incorrect.*key|authentication|auth.*fail|access denied|permission denied|invalid.*token|token.*invalid|api.key.*invalid/i.test(message) &&
+      !/safety|content.policy|content.filter|moderation|policy.*violation|violat|flagged|nsfw|sensitive|审核|违规|敏感/i.test(message),
+    summary: "API Key 无效、已过期或没有权限访问此接口。",
+    details: [
+      "检查 API Key 是否正确，是否有多余空格或换行。",
+      "确认 Key 是否已过期或被禁用。",
+      "如果使用中转，确认中转服务允许你访问该模型。",
+    ],
+    actions: ["openApiConfig", "copyDebug"],
+  },
+  {
+    code: "quota-billing",
+    title: "额度不足或账户欠费",
+    icon: "credit_card_off",
+    match: ({ message }) =>
+      /402|429|quota|billing|insufficient|balance|credit|payment|rate.limit|too many requests|exceeded|limit.*reached|no.*available.*key|可用.*key|余额|欠费|额度/i.test(message),
+    summary: "账户余额不足、额度已用尽，或请求频率超出限制。",
+    details: [
+      "402：上游账户可能欠费或无可用额度，请充值或更换 Key。",
+      "429：请求过于频繁，稍后再试或减少并发数量。",
+      "如果使用中转，联系中转服务商确认额度状态。",
+    ],
+    actions: ["openApiConfig", "copyDebug"],
+  },
+  {
+    code: "content-policy",
+    title: "内容审核未通过",
+    icon: "gpp_bad",
+    match: ({ message }) =>
+      /safety|content.policy|content.filter|moderation|policy.*violation|violat|flagged|blocked|harmful|inappropriate|nsfw|sensitive|审核|违规|敏感/i.test(message),
+    summary: "提示词或参考图触发了平台内容审核策略。",
+    details: [
+      "修改提示词，避免可能触发审核的敏感描述。",
+      "如果使用了参考图，尝试更换参考图后重试。",
+      "部分中转服务有更宽松的审核设置。",
+    ],
+    actions: ["retry", "copyDebug"],
+  },
+  {
     code: "model-name",
     title: "模型名称可能不正确",
     icon: "model_training",
     match: ({ message }) =>
-      /model|模型|not found|does not exist|not exist|unsupported.*model|invalid.*model|404|permission.*model/i.test(message),
+      /model.*not.found|model.*does not exist|unsupported.*model|invalid.*model|unknown.*model|no such model|模型.*不存在|模型.*无效/i.test(message) ||
+      (/404/i.test(message) && !/size|image/i.test(message)),
     summary: "接口无法识别或无权访问当前模型名。",
     details: [
       "打开 API 配置，确认模型名与当前接口渠道完全一致。",
-      "也可以点击“获取模型”重新选择可用模型。",
+      "也可以点击\u201c获取模型\u201d重新选择可用模型。",
     ],
     actions: ["openApiConfig", "copyDebug"],
   },
@@ -563,7 +607,7 @@ const GENERATION_DIAGNOSTIC_RULES = [
     title: "图片尺寸或比例不受支持",
     icon: "aspect_ratio",
     match: ({ message }) =>
-      /size|image_size|image size|resolution|dimension|aspect|ratio|尺寸|分辨率|比例|must be one of|unsupported.*(size|resolution)|invalid.*(size|resolution)/i.test(message),
+      /image.size|image_size|invalid.*size|unsupported.*(size|resolution)|invalid.*(resolution|dimension)|aspect.ratio|must be.*\d+x\d+|尺寸.*不支持|分辨率.*不支持|比例.*不支持/i.test(message),
     summary: "当前渠道不支持请求的画幅、尺寸或高清参数。",
     details: [
       "先改为标准画质 / 1K，或使用常见比例（1:1、16:9、9:16）再试。",

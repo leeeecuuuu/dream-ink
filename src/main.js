@@ -289,12 +289,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const clipboard = e.clipboardData;
       if (!clipboard) return;
 
-      const pastedImages = Array.from(new Map([
-        ...Array.from(clipboard.items || [])
-          .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
-          .map(item => item.getAsFile()),
-        ...Array.from(clipboard.files || []).filter(file => file.type.startsWith('image/')),
-      ].filter(Boolean).map(file => [`${file.name}:${file.size}:${file.type}:${file.lastModified}`, file])).values());
+      let pastedImages = Array.from(clipboard.items || [])
+        .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+      if (!pastedImages.length) {
+        pastedImages = Array.from(clipboard.files || []).filter(file => file.type.startsWith('image/'));
+      }
 
       if (!pastedImages.length) return;
 
